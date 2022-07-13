@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import crypto, { BinaryToTextEncoding } from 'crypto';
 
 import fetch from 'node-fetch';
 
@@ -7,6 +7,27 @@ const OAUTH_PARAM_PREFIX = /^oauth_/;
 export abstract class OAuthSigner {
   abstract getMethod(): string;
   abstract sign(base: string, token: string | undefined): string;
+}
+
+export class CryptoSigner extends OAuthSigner {
+  private _signer: crypto.Sign;
+
+  constructor(
+    private method: string,
+    private key: string | Buffer,
+    private outputFormat: BinaryToTextEncoding = 'base64',
+  ) {
+    super();
+    this._signer = crypto.createSign(this.method);
+  }
+
+  public getMethod(): string {
+    return this.method;
+  }
+
+  public sign(base: string): string {
+    return this._signer.update(base).sign(this.key, this.outputFormat);
+  }
 }
 
 export interface OAuthClientOptions {
