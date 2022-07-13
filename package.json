@@ -1,0 +1,26 @@
+{
+  "name": "kobidge",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "repository": "git@github.com:sbquinlan/kobidge.git",
+  "author": "Sean Quinlan <1011062+sbquinlan@users.noreply.github.com>",
+  "license": "MIT",
+  "scripts": {
+    "start": "yarn build && node dist/index.js",
+    "clean": "rm dist/*",
+    "build": "tsc",
+    "pretty": "prettier -c .",
+    "test": "jest"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.1",
+    "node-fetch": "^3.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.3",
+    "@types/node-fetch": "^2.6.2",
+    "prettier": "^2.7.1",
+    "typescript": "^4.7.4"
+  }
+}
