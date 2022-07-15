@@ -14,9 +14,7 @@ async function main() {
       // @ts-ignore
       process.env.CONSUMER_KEY,
       new CryptoSigner('RSA-SHA256', key),
-      'limited_poa',
-      'oob',
-      20
+      { realm: 'limited_poa' },
     );
 
     const token = await oa.getOAuthRequestToken();

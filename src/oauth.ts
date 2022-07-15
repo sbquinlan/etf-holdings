@@ -4,6 +4,12 @@ import fetch from 'node-fetch';
 
 const OAUTH_PARAM_PREFIX = /^oauth_/;
 
+const BODY_MODE = 'body';
+const HEADER_MODE = 'header';
+
+const FORM_URLENCODED = 'application/x-www-form-urlencoded';
+const JSON_ENCODED = 'application/json';
+
 export abstract class OAuthSigner {
   abstract getMethod(): string;
   abstract sign(base: string, token: string | undefined): string;
@@ -15,7 +21,7 @@ export class CryptoSigner extends OAuthSigner {
   constructor(
     private method: string,
     private key: string | Buffer,
-    private outputFormat: BinaryToTextEncoding = 'base64',
+    private outputFormat: BinaryToTextEncoding = 'base64'
   ) {
     super();
     this._signer = crypto.createSign(this.method);
@@ -31,39 +37,48 @@ export class CryptoSigner extends OAuthSigner {
 }
 
 export interface OAuthClientOptions {
-  requestTokenHttpMethod: string;
-  accessTokenHttpMethod: string;
-  followRedirects: true;
-  oauthParameterSeperator: string;
+  authParameterSeperator: string,
+  contentType: typeof FORM_URLENCODED | typeof JSON_ENCODED,
+  headers: Record<string, string>,
+  mode: typeof BODY_MODE | typeof HEADER_MODE,
+  nonceSize: number,
+}
+const OAuthClientOptionDefaults: OAuthClientOptions = {
+  authParameterSeperator: ', ',
+  contentType: FORM_URLENCODED,
+  headers: {
+    Accept: '*/*',
+    Connection: 'close',
+    'User-Agent': 'Node authentication',
+  },
+  mode: HEADER_MODE,
+  nonceSize: 20,
 }
 
 export default class OAuth {
+  private _options: OAuthClientOptions;
   constructor(
     private _requestUrl: URL,
     private _accessUrl: URL,
     private _consumerKey: string,
     private _signer: OAuthSigner,
-    private _realm: string,
-    private _authCallback: string = 'oob',
-    //    private _version: string = "1.0",
-    private _nonceSize: number = 32,
-    private _headers: Record<string, string> = {
-      Accept: '*/*',
-      Connection: 'close',
-      'User-Agent': 'Node authentication',
+    private _extraParams: Record<string, string> = {
+      // optional oauth param
+      oauth_version: '1.0',
+      // realm is an Authentication header spec thing
+      // realm: 'test',
     },
-    private _options: OAuthClientOptions = {
-      accessTokenHttpMethod: 'POST',
-      requestTokenHttpMethod: 'POST',
-      followRedirects: true,
-      oauthParameterSeperator: ', ',
-    }
-  ) {}
+    // oauth param only used for "request token" step
+    private _authCallback: string = 'oob',
+    options: Partial<OAuthClientOptions> = OAuthClientOptionDefaults,
+  ) {
+    this._options = { ... OAuthClientOptionDefaults, ... options };
+  }
 
   _encodeData(toEncode: string | undefined) {
     if (!toEncode) return '';
 
-    // Fix the mismatch between OAuth's  RFC3986's and Javascript's beliefs in what is right and wrong ;)
+    // Fix the mismatch between RFC3986's and Javascript's beliefs in what is right and wrong ;)
     return encodeURIComponent(toEncode)
       .replace(/\!/g, '%21')
       .replace(/\'/g, '%27')
@@ -78,7 +93,6 @@ export default class OAuth {
   }
 
   _getSignature(
-    method: string,
     url: URL,
     parameters: string,
     token_secret: string | undefined
@@ -87,14 +101,17 @@ export default class OAuth {
     cloned.search = '';
     cloned.hash = '';
     return this._signer.sign(
-      method.toUpperCase() +
-        '&' +
+      'POST&' +
         this._encodeData(cloned.toString()) +
         '&' +
         this._encodeData(parameters),
       // this encoded <consumer_key>&<token_secret>, but it doesn't seem to make sense with the ibkrs api so I removed it
       token_secret
     );
+  }
+
+  _sortPair(a: [any, any], b: [any, any]): number {
+    return a[0] == b[0] ? (a[1] < b[1] ? -1 : 1) : a[0] < b[0] ? -1 : 1;
   }
 
   _normaliseRequestParams(params: Record<string, string>) {
@@ -105,7 +122,7 @@ export default class OAuth {
         // Then sort them #3.4.1.3.2 .2
         // Sorts the encoded key value pairs by encoded name, then encoded value
         .sort((a, b) =>
-          a[0] == b[0] ? (a[1] < b[1] ? -1 : 1) : a[0] < b[0] ? -1 : 1
+          this._sortPair(a as [string, string], b as [string, string])
         )
         // Then concatenate together #3.4.1.3.2 .3 & .4
         .map((pair) => pair.join('='))
@@ -113,116 +130,135 @@ export default class OAuth {
     );
   }
 
-  _prepareParameters(
-    oauth_token: string | undefined,
-    oauth_token_secret: string | undefined,
-    method: string,
-    url: URL,
-    extra_params: Record<string, string>
-  ) {
+  /**
+   * Three buckets of params:
+   * 1. signature base
+   * 2. auth header
+   * 3. body
+   *
+   * Method is assumed to be BODY, which is recommended by spec. this._mode decides where the oauth
+   * params end up (either in the body or in the Authorization header.) Between this._contentType and
+   * this._mode, this leaves 4 combinations:
+   *
+   * this._mode this._contentType
+   * HEADER     json
+   * HEADER     form
+   * BODY       json
+   * BODY       form
+   *
+   * Signature base is always HTTP method, normalized URL, query params from the URL. If 'form' is used
+   * for content type then any additional params in the body are included as well. If 'json' is used then
+   * the additional params are ignored.
+   *
+   * Auth header is only relevant if mode is HEADER. If mode is BODY, then the header is not used. Auth header
+   * is all the oauth params and realm (optional)
+   *
+   * Body is always non-oauth params (except realm). If mode is BODY, then body contains all params (except realm)
+   */
+  _prepareParameters(url: URL, extra_params: Record<string, string>) {
+    const [oauth_and_secret, other_and_realm] = Object.entries(extra_params)
+      .reduce<[[string, string][], [string, string][]]>(
+        ([oauth_entries, other_entries], entry) => {
+          if (OAUTH_PARAM_PREFIX.test(entry[0])) {
+            oauth_entries = [...oauth_entries, entry];
+          } else {
+            other_entries = [...other_entries, entry];
+          }
+          return [oauth_entries, other_entries];
+        },
+        [[], []]
+      )
+      .map((entries) => Object.fromEntries(entries));
+
+    // token secret is only for signature creation
+    const { oauth_token_secret = undefined, ...oauth_extras } =
+      oauth_and_secret;
+    // realm is only for auth header
+    const { realm = undefined, ...other_extras } = other_and_realm;
+
     const oauth_parameters = {
-      ...(oauth_token && { oauth_token }),
-      oauth_timestamp: String(Math.floor(new Date().getTime() / 1000)),
-      oauth_nonce: crypto.randomBytes(this._nonceSize / 2).toString('hex'),
-      // ibkr doesn't use this
-      // oauth_version: this._version,
-      oauth_signature_method: this._signer.getMethod(),
       oauth_consumer_key: this._consumerKey,
+      oauth_nonce: crypto.randomBytes(this._options.nonceSize / 2).toString('hex'),
+      oauth_signature_method: this._signer.getMethod(),
+      oauth_timestamp: String(Math.floor(new Date().getTime() / 1000)),
+      ...oauth_extras,
     };
-    const signature_parameters = {
-      ...oauth_parameters,
-      ...extra_params,
-      // 3.4.1.3.1 https://datatracker.ietf.org/doc/html/rfc5849#section-3.4.1.3.1 includes this idk
-      ...Object.fromEntries(
-        Array.from(new URLSearchParams(url.search).entries())
-      ),
-    };
+
     const oauth_signature = this._getSignature(
-      method,
       url,
-      this._normaliseRequestParams(signature_parameters),
+      // BUCKET 1: Signature Base
+      this._normaliseRequestParams({
+        ...oauth_parameters,
+        // 3.4.1.3.1 https://datatracker.ietf.org/doc/html/rfc5849#section-3.4.1.3.1 includes
+        // post body if post body is form-urlencoded
+        ...(this._options.contentType === FORM_URLENCODED && {
+          ...other_extras,
+        }),
+        // the query params from the url
+        ...Object.fromEntries(
+          Array.from(new URLSearchParams(url.search).entries())
+        ),
+      }),
       oauth_token_secret
     );
 
-    // these are the header values, that should include only oauth_protocol stuff
     return {
-      ...oauth_parameters,
-      // only oauth extra_params
-      ...Object.fromEntries(
-        Object.entries(extra_params).filter(([key, _val]) =>
-          OAUTH_PARAM_PREFIX.test(key)
-        )
-      ),
-      oauth_signature,
-      realm: this._realm,
+      // BUCKET 2: Header (only relevant if mode is header)
+      header_params: {
+        ...oauth_parameters,
+        oauth_signature,
+        ...(realm && { realm }), // optional realm
+      },
+      // BUCKET 3: BODY
+      body_params: {
+        ...other_extras,
+        ...(this._options.mode === BODY_MODE && {
+          ...oauth_parameters,
+          oauth_signature,
+        }),
+      },
     };
   }
 
-  // build the OAuth request authorization header
-  _buildAuthorizationHeaders(
-    oauth_token: string | undefined,
-    oauth_token_secret: string | undefined,
-    method: string,
-    url: URL,
-    extra_params: Record<string, string>
-  ) {
-    const params = this._prepareParameters(
-      oauth_token,
-      oauth_token_secret,
-      method,
-      url,
-      extra_params
-    );
+  _buildAuthorizationHeaders(params: Record<string, string>) {
     const header_value = Object.entries(params)
-      .sort((a, b) =>
-        a[0] == b[0] ? (a[1] < b[1] ? -1 : 1) : a[0] < b[0] ? -1 : 1
-      )
+      // technically don't have to sort them
+      .sort((a, b) => this._sortPair(a, b))
       .map(
         ([key, value]) =>
           `${this._encodeData(key)}="${this._encodeData(value)}"`
       )
-      .join(this._options.oauthParameterSeperator);
+      .join(this._options.authParameterSeperator);
     return `OAuth ${header_value}`;
   }
 
   async _performSecureRequest(
-    oauth_token: string | undefined,
-    oauth_token_secret: string | undefined,
-    method: string,
     url: URL,
     extra_params: Record<string, string>
   ): Promise<any> {
-    const filtered_extra_params = Object.fromEntries(
-      Object.entries(extra_params).filter(
-        ([key, _val]) => !OAUTH_PARAM_PREFIX.test(key)
-      )
+    const { header_params, body_params } = this._prepareParameters(
+      url,
+      extra_params
     );
-
-    // this doesn't convert '*' to percent encoded like the previous implementation did, but something said it
-    // was compliant with the RFC so I'm trusting it.
-    const body = new URLSearchParams(filtered_extra_params).toString();
+    const body =
+      this._options.contentType === FORM_URLENCODED
+        ? new URLSearchParams(body_params)
+        : JSON.stringify(body_params);
     const headers = {
-      Authorization: this._buildAuthorizationHeaders(
-        oauth_token,
-        oauth_token_secret,
-        method,
-        url,
-        extra_params
-      ),
-      'Content-Length': String(body.length),
-      'Content-Type': 'application/x-www-form-urlencoded',
+      ...this._options.headers,
+      ...(this._options.mode === HEADER_MODE && {
+        Authorization: this._buildAuthorizationHeaders(header_params),
+      }),
+      ...(this._options.contentType === JSON_ENCODED && {
+        'Content-Type': JSON_ENCODED,
+        'Content-Length': String((<String>body).length),
+      }),
       Host: url.host,
-      ...this._headers,
     };
-    const resp = await fetch(url.toString(), { headers, method, body });
-    if (
-      (resp.status === 301 || resp.status === 302) &&
-      this._options.followRedirects
-    ) {
+    const resp = await fetch(url.toString(), { method: 'POST', headers, body });
+
+    if (resp.status === 301 || resp.status === 302) {
       return this._performSecureRequest(
-        oauth_token,
-        oauth_token_secret,
-        method,
         new URL(url.origin, resp.headers.get('Location')!),
         extra_params
       );
@@ -231,20 +267,18 @@ export default class OAuth {
       const message = await resp.text();
       throw new Error(`${resp.status} ${resp.statusText}: ${message}`);
     }
-    // the original implementation didn't assume json, but I'm going to
-    return resp.json();
+
+    return resp.headers.get('Content-Type') === JSON_ENCODED
+      ? resp.json()
+      : resp.text();
   }
 
   // first request
   async getOAuthRequestToken() {
-    return this._performSecureRequest(
-      undefined,
-      undefined,
-      this._options.requestTokenHttpMethod,
-      this._requestUrl,
-      // Callbacks are 1.0A related
-      { oauth_callback: this._authCallback }
-    );
+    return this._performSecureRequest(this._requestUrl, {
+      ...this._extraParams,
+      oauth_callback: this._authCallback,
+    });
   }
 
   // second request
@@ -253,12 +287,11 @@ export default class OAuth {
     oauth_token_secret: string,
     oauth_verifier: string | undefined
   ) {
-    return this._performSecureRequest(
+    return this._performSecureRequest(this._accessUrl, {
+      ...this._extraParams,
       oauth_token,
       oauth_token_secret,
-      this._options.accessTokenHttpMethod,
-      this._accessUrl,
-      oauth_verifier ? { oauth_verifier } : {}
-    );
+      ...(oauth_verifier && { oauth_verifier }),
+    });
   }
 }
