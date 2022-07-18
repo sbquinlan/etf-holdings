@@ -10,6 +10,39 @@ const HEADER_MODE = 'header';
 const FORM_URLENCODED = 'application/x-www-form-urlencoded';
 const JSON_ENCODED = 'application/json';
 
+/**
+ * IBKRs doesn't allow Oauth on retail accounts so I guess I can't use this but
+ * here's the example of how to use it if you could:
+ * 
+    import 'dotenv/config';
+    import { readFile } from 'fs/promises';
+
+    import OAuth, { CryptoSigner } from './oauth.js';
+
+    const BASE_URI = 'https://www.interactivebrokers.com/tradingapi/v1/oauth/';
+
+    async function main() {
+      try {
+        const key = await readFile('./keys/private_signature.pem');
+        const oa = new OAuth(
+          new URL(`${BASE_URI}request_token`),
+          new URL(`${BASE_URI}access_token`),
+          // @ts-ignore
+          process.env.CONSUMER_KEY,
+          new CryptoSigner('RSA-SHA256', key),
+          { realm: 'limited_poa' },
+        );
+
+        const token = await oa.getOAuthRequestToken();
+        console.log(token);
+      } catch (e: any) {
+        console.error(e);
+      }
+    }
+
+    main();
+ */
+
 export abstract class OAuthSigner {
   abstract getMethod(): string;
   abstract sign(base: string, token: string | undefined): string;
@@ -37,11 +70,11 @@ export class CryptoSigner extends OAuthSigner {
 }
 
 export interface OAuthClientOptions {
-  authParameterSeperator: string,
-  contentType: typeof FORM_URLENCODED | typeof JSON_ENCODED,
-  headers: Record<string, string>,
-  mode: typeof BODY_MODE | typeof HEADER_MODE,
-  nonceSize: number,
+  authParameterSeperator: string;
+  contentType: typeof FORM_URLENCODED | typeof JSON_ENCODED;
+  headers: Record<string, string>;
+  mode: typeof BODY_MODE | typeof HEADER_MODE;
+  nonceSize: number;
 }
 const OAuthClientOptionDefaults: OAuthClientOptions = {
   authParameterSeperator: ', ',
@@ -53,7 +86,7 @@ const OAuthClientOptionDefaults: OAuthClientOptions = {
   },
   mode: HEADER_MODE,
   nonceSize: 20,
-}
+};
 
 export default class OAuth {
   private _options: OAuthClientOptions;
@@ -70,9 +103,9 @@ export default class OAuth {
     },
     // oauth param only used for "request token" step
     private _authCallback: string = 'oob',
-    options: Partial<OAuthClientOptions> = OAuthClientOptionDefaults,
+    options: Partial<OAuthClientOptions> = OAuthClientOptionDefaults
   ) {
-    this._options = { ... OAuthClientOptionDefaults, ... options };
+    this._options = { ...OAuthClientOptionDefaults, ...options };
   }
 
   _encodeData(toEncode: string | undefined) {
@@ -178,7 +211,9 @@ export default class OAuth {
 
     const oauth_parameters = {
       oauth_consumer_key: this._consumerKey,
-      oauth_nonce: crypto.randomBytes(this._options.nonceSize / 2).toString('hex'),
+      oauth_nonce: crypto
+        .randomBytes(this._options.nonceSize / 2)
+        .toString('hex'),
       oauth_signature_method: this._signer.getMethod(),
       oauth_timestamp: String(Math.floor(new Date().getTime() / 1000)),
       ...oauth_extras,
