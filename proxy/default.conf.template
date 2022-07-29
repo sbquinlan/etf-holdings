@@ -1,0 +1,20 @@
+
+server {
+  listen 80 default_server;
+  resolver 127.0.0.11;
+
+  server_name _;
+  server_name_in_redirect off;
+
+  access_log /dev/stdout;
+  error_log /dev/stderr info;
+
+  location / {
+    proxy_pass http://ibgateway:5000;
+    proxy_set_header Origin $proxy_host;
+    proxy_set_header User-Agent "Console";
+
+    proxy_hide_header 'Access-Control-Allow-Origin';
+    add_header 'Access-Control-Allow-Origin' '*';
+  }
+}
