@@ -4,20 +4,9 @@ services:
     image: ibgateway
     build:
       context: ./ibgateway/
-      dockerfile: ./Dockerfile
-    networks:
-      - default
   rproxy:
     image: nginx:alpine
     volumes:
       - "./proxy/default.conf.template:/etc/nginx/templates/default.conf.template"
-    networks:
-      - default
     ports:
       - "5000:80"
-
-networks:
-  default:
-    ipam:
-      config:
-        - subnet: 192.168.10.0/24
