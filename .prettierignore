@@ -1,5 +1,0 @@
-*.vert
-*.frag
-dist
-tsconfig.json
-.prettierrc.json
