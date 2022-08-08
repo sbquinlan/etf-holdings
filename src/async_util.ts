@@ -1,3 +1,4 @@
+
 export async function to_array<TThing>(
   gen: AsyncIterable<TThing> | Iterable<TThing>
 ): Promise<Array<TThing>> {
@@ -8,85 +9,181 @@ export async function to_array<TThing>(
   return arr;
 }
 
-export function *take<TThing>(n: number, iter: Iterator<TThing>) {
+export async function sleep(delay: number) {
+  return new Promise((res, _) => { setTimeout(res, Math.max(delay, 0)); })
+}
+
+export async function *take<TThing>(n: number, iter: AsyncIterator<TThing>) {
   let value, done = false;
   for (let i = 0; i < n; i++) { 
-    ({ done = false, value } = iter.next());
+    ({ done = false, value } = await iter.next());
     if (done) return done;
     yield value;
   }
   return done;
 }
 
-export function with_return<TThing, TReturn>(
-  iter: Generator<TThing, TReturn>,
-): [TThing[], TReturn] {
+export async function with_return<TThing, TReturn>(
+  iter: AsyncGenerator<TThing, TReturn>,
+): Promise<[TThing[], TReturn]> {
   let value, done;
   const result = [];
   do {
-    ({value, done} = iter.next());
+    ({value, done} = await iter.next());
     if (!done) result.push(<TThing>value);
   } while (!done);
   return [result, <TReturn>value];
 }
 
+export async function any_va<T extends readonly Promise<unknown>[]>(
+  proms: [...T]
+): Promise<{ -readonly [P in keyof T]: Awaited<T[P]> | undefined }> {
+  if (proms.length === 0) {
+    return [] as unknown as { -readonly [P in keyof T]: Awaited<T[P]> };
+  }
 
-/**
- * This kind of works but it doesn't support parallelism. Normally you'd 
- * allow limit things to run in parallel, but this implementation just allows 
- * allows limit things to run within a certain time period, sequentially. 
- * 
- * If you say the limit is 3 and the rate is 1000, that means the bucket is 3
- * big, but leaks 1 per second. So if the bucket hasn't been filled you could
- * run 3 things in the first second assuming that the "things" take less than 300 ms.
- * 
- * To support parallelism this thing would have to be more interactive with the upstream.
- * It would have to go:
- * 
- * Current capacity is N
- * Ask for N things
- * Get M things
- * Run M things in parallel, don't wait
- * Increment capacity
- * If at or over capacity, wait X ms for capacity to run more
- * Update capacity
- * 
- * Basically the await on the async iterator should just waiting for more jobs to appear
- * not running the rate limited work you see?
- * 
- * So I think there's two ways to do this:
- * 1. You have the source give you promise constructors. map_gen is not this thing because 
- * it awaits the promise it creates when you call next() on it. So you have to wait for the 
- * promise you created to be done. That's the error in map_gen. What you really want is it 
- * to give you an unawaited promise (which I'm guessing makes Awaited<> useful) to run 
- * with other promises. But you can't yield a promise from an async gen.
- * 
- * 2. You have a source that gives you thingg as you ask for them, you construct the promise and
- * manage awaiting results. The problem is that it's really hard to yield the results. If you yield
- * an unawaited promise then you'll wait for it to finish. There doesn't seem to be a way to not await
- * the promises. 
- * 
- * 3. You have the source give you things as you ask for them, you output those things at a rate, 
- * you don't construct promises. Whatever is downstream is free to construct the promises into a 
- * sink and await all. The only thing that sucks about not being involved in the promises is concurrency.
- * If you want limit to mean only N things can be running at the same time maximally, then you'll need
- * actually look out for reaching that number of running promises and wait for them to be done.
- * 
- * Assuming we actually do care about concurrent jobs. Then we need to change the logic a bit:
- * 
- * Calculate extra capacity N:
- *   Calculate space in bucket B
- *   Calculate available jobs space J
- *   N = min(B, J)
- * If N == 0:
- *   If J == 0:
- *      wait for any jobs to resolve.
- *   If B == 0:
- *      wait for more capacity
- * Add N jobs to active
- */
+  return new Promise((res, rej) => {
+    for (let i = 0; i < proms.length; i++) {
+      proms[i].then(
+        (subresult) => { 
+          const all_results = new Array(proms.length) as { -readonly [P in keyof T]: Awaited<T[P]> }; 
+          all_results[i] = subresult;
+          res(all_results);
+        },
+        rej,
+      );
+    }
+  });
+}
+
+export class ChunkyIterator<TThing, TReturn> implements AsyncIterator<TThing[], TReturn, number> {
+  private ret?: TReturn;
+  constructor(private readonly iter: AsyncIterator<TThing>) {}
+
+  async next(count: number): Promise<IteratorResult<TThing[], TReturn>> {
+    const chunk = [];
+    let done = false, value;
+    for (let i = 0; !done && i < count; i++) { 
+      ({ done = false, value } = await this.iter.next());
+      if (done) this.ret = <TReturn> value;
+      else chunk.push(value);
+    }
+    /**
+     * possibilities:
+     * 1. satisfied {count} and not done
+     * 2. satisfied {count} and done
+     * 3. unsatisfied {count} and done
+     * 
+     * #2 is tricky
+     * We have to return { value: chunk, done: false } and expect another call for
+     * { value: this.ret, done: true }.
+     * 
+     * There is the possibility that count === 0 and the iter previously finished.
+     * In this case, we shouldn't wait for a call with count > 0, we should just 
+     * return { value: this.ret, done: true }
+     * 
+     * #3 is tricky
+     * 
+     * If we did manage to put anything in chunk, then we obviously need to return 
+     * that first { value: chunk, done: false } and expect another call for the 
+     * { value: this.ret, done: true };
+     * 
+     * If chunk is empty, then we should return { value: this.ret, done: true }
+     * ---- 
+     * If chunk.length is truthy, we have to return { done: false, value: chunk }
+     * else: done ? { done, value: this.ret } : { done, value: chunk }
+     */
+    return chunk.length
+      ? { done: false, value: chunk }
+      : (done ? { done, value: <TReturn>this.ret } : { done, value: chunk })
+  }
+}
+
+export class LeakyIterator<TThing, TReturn> extends ChunkyIterator<TThing, TReturn> {
+  private level: number = 0;
+  private last: number = Date.now();
+
+  constructor(
+    iter: AsyncIterator<TThing>,
+    private readonly limit: number,
+    private readonly rate: number,
+  ) { 
+    super(iter);
+  }
+
+  async next(open: number = 1): Promise<IteratorResult<TThing[], TReturn>> {
+    // recalc level after leak
+    const now = Date.now();
+    const leaked = (now - this.last) / this.rate;
+    this.last = now;
+    this.level = Math.max(this.level - leaked, 0)
+
+    // do we need to wait for more to leak?
+    const delay = Math.max((this.level - (this.limit - 1)) * this.rate, 0);
+    if (delay > 0) {
+      await sleep(delay);
+    }
+
+    // number of things to take, it's okay if it's zero
+    const to_take = Math.floor(Math.min(
+      Math.max(this.limit - this.level, 0),
+      open,
+    ));
+    const result = await super.next(to_take);
+
+    // increment the level
+    this.level += Array.isArray(result.value) ? result.value.length : 0;
+    return result;
+  }
+}
+
 export async function* rate_limit<TThing, TResult>(
-  source: Iterable<TThing>,
+  iter: ChunkyIterator<TThing, unknown>,
+  fn: (thing: TThing) => Promise<TResult>,
+  limit: number = 1, // concurrency
+) {
+  let active: Promise<TResult>[] = [];
+  let results: TResult[] = [];
+
+  let iter_prom;
+  while (true) {
+    const open = Math.max(limit - active.length, 0);
+    if (!iter_prom && open > 0) {
+      iter_prom = iter_prom ?? iter.next(open);
+    }
+
+    const [iter_result, ... _rest] = await any_va([
+      ... iter_prom ? [iter_prom] : [],
+      ... active,
+    ]);
+    
+    if (iter_prom && iter_result) {
+      iter_prom = undefined;
+      if ((<IteratorResult<TThing[], unknown>>iter_result).done) break;
+      
+      // create new promises if the iterator returned
+      const promises = (<IteratorYieldResult<TThing[]>>iter_result).value.map(p => fn(p))
+      active = [ ... active, ... promises ]
+      promises.map(p => p.then((res) => { 
+        // REVIEW: I don't love this for state management. 
+        active.splice(active.indexOf(p), 1)
+        results.push(res)
+      }))
+    }
+    
+    yield* results;
+    results = [];
+  }
+
+  while (active.length) {
+    await Promise.any(active)
+    yield* results;
+    results = [];
+  }
+}
+
+export async function* limit<TThing, TResult>(
+  source: AsyncIterable<TThing>,
   fn: (thing: TThing) => Promise<TResult>,
   limit: number, // bucket size (both concurrent jobs and bucket capacity)
   rate: number,  // ms it takes for 1 spot to leak
@@ -97,72 +194,54 @@ export async function* rate_limit<TThing, TResult>(
   let active: Promise<TResult>[] = [];
   let results: TResult[] = [];
 
-  const iter = source[Symbol.iterator]();
+  const iter = source[Symbol.asyncIterator]();
 
   while (!done) {
-    // recalc bucket level (ignoring capacity)
+    let things: TThing[] = [], _rest;
+
+    // recalc bucket level
     const now = Date.now();
     const leaked = (now - last) / rate;
     last = now;
+    level = Math.max(level - leaked, 0);
 
-    level = Math.max(0, level - leaked);
-    const open = Math.min(
+    // number of things to take
+    const open = Math.floor(Math.min(
       Math.max(limit - level, 0),
       Math.max(limit - active.length, 0),
-    );
-
-    let things; ([ things, done ] = with_return(take(Math.floor(open), iter)));
+    ));
+    // time til more capacity if at limit
+    const delay = Math.max(0, (level - (limit - 1)) * rate);
+    const other = [
+      // if we are over capacity we should wait til we have more
+      ... delay > 0 ? [sleep(delay)] : [],
+      // if any of the active finish we should yield the result
+      ... active
+    ]
+    if (open > 0) {
+      ([
+        [ things, done ], 
+        ... _rest
+      ] = await any_va([
+        with_return<TThing, boolean>(take(open, iter)),
+        ... other,
+      ]));
+    } else {
+      await Promise.any(other);
+    }
+    
+    // create new promises if the iterator returned
     level += things.length;
-
-    // new promises, add to active, remove when completed, add resolved to results
     const promises = things.map(p => fn(p))
     active = [ ... active, ... promises ]
-
-    // TODO: I don't love this for state management. I think more centralized state management
-    // would be great. If I could key the promises, 
     promises.map(p => p.then((res) => { 
+      // REVIEW: I don't love this for state management. 
       active.splice(active.indexOf(p), 1)
       results.push(res)
     }))
-
-    const delay = Math.max(0, (level - (limit - 1)) * rate);
-    if (delay > 0 || active.length >= limit) {
-      // include the delay promise if we need to wait
-      // any finished promise should trigger returning results
-      await delay > 0 
-        ? Promise.any([
-            ... active,
-            new Promise((res, _) => { setTimeout(res, delay); })
-          ])
-        : Promise.any(active);
-    }
-
+    
+    console.log(results);
     yield* results;
     results = [];
-  }
-}
-
-// this is the original implementation that doesn't do parallel
-export async function* limit<TThing>(
-  list: Iterable<Promise<TThing>>,
-  limit: number,
-  rate: number
-) {
-  let level = 0;
-  let last = Date.now();
-  for (const thing of list) {
-    yield thing;
-
-    // update the level based on time spent awaiting and add 1
-    const now = Date.now();
-    const leaked = (now - last) / rate;
-    level = Math.max(0, level - leaked + 1);
-    last = now;
-
-    // if we've exceeded our capacity, then wait til it drains to have space for one
-    const delay = Math.max(0, (level - (limit - 1)) * rate);
-    if (delay > 0) {
-      await new Promise((res, _) => { setTimeout(res, delay); });
-    }
   }
 }
