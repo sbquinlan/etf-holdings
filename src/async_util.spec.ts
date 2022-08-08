@@ -1,4 +1,4 @@
-import { rate_limit, take, with_return, sleep, to_array, any_va, LeakyIterator } from './async_util';
+import { map, sleep, to_array, any_va, LeakyIterator } from './async_util';
 
 async function* asyncRange(n: number) {
   for (let i = 0; i < n; i++) yield i;
@@ -20,34 +20,6 @@ describe('to_array', () => {
     expect(result).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 });
-
-describe('take', () => {
-  it('should work', async () => {
-    const arr = async function *() { yield * [0, 1, 2, 3]; }
-    const iter = take(3, arr());
-    expect(await iter.next()).toEqual({ value: 0, done: false });
-    expect(await iter.next()).toEqual({ value: 1, done: false });
-    expect(await iter.next()).toEqual({ value: 2, done: false });
-    expect(await iter.next()).toEqual({ value: false, done: true });
-    expect(await iter.next()).toEqual({ value: undefined, done: true });
-  });
-})
-
-describe('with_return', () => {
-  it('should separate the yields and the return', async () =>  {
-    const arr = async function *() { yield * [0, 1, 2, 3]; }
-    const [yields, returns] = await with_return(take(3, arr()));
-    expect(yields).toEqual([0, 1, 2]);
-    expect(returns).toEqual(false);
-  });
-
-  it('should separate the yields and the return when exhausting the iter', async () =>  {
-    const arr = async function *() { yield * [0, 1, 2, 3]; }
-    const [yields, returns] = await with_return(take(5, arr()));
-    expect(yields).toEqual([0, 1, 2, 3]);
-    expect(returns).toEqual(true);
-  });
-})
 
 describe('any_va', () => {
   it('should return first promise', async () => {
@@ -75,7 +47,7 @@ describe('rate_limit', () => {
   it('should work with 3', async () => {
     const iter = asyncRange(10)[Symbol.asyncIterator]();
     const result = await to_array(
-      rate_limit(
+      map(
         new LeakyIterator(
           iter,
           3,
@@ -94,7 +66,7 @@ describe('rate_limit', () => {
   it('should work with 1', async () => {
     const iter = asyncRange(10)[Symbol.asyncIterator]();
     const result = await to_array(
-      rate_limit(
+      map(
         new LeakyIterator(
           iter,
           3,
@@ -104,7 +76,6 @@ describe('rate_limit', () => {
           await sleep(100)
           return x 
         },
-        1,
       )
     );
     expect(result).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);

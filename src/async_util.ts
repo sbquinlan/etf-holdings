@@ -13,28 +13,6 @@ export async function sleep(delay: number) {
   return new Promise((res, _) => { setTimeout(res, Math.max(delay, 0)); })
 }
 
-export async function *take<TThing>(n: number, iter: AsyncIterator<TThing>) {
-  let value, done = false;
-  for (let i = 0; i < n; i++) { 
-    ({ done = false, value } = await iter.next());
-    if (done) return done;
-    yield value;
-  }
-  return done;
-}
-
-export async function with_return<TThing, TReturn>(
-  iter: AsyncGenerator<TThing, TReturn>,
-): Promise<[TThing[], TReturn]> {
-  let value, done;
-  const result = [];
-  do {
-    ({value, done} = await iter.next());
-    if (!done) result.push(<TThing>value);
-  } while (!done);
-  return [result, <TReturn>value];
-}
-
 export async function any_va<T extends readonly Promise<unknown>[]>(
   proms: [...T]
 ): Promise<{ -readonly [P in keyof T]: Awaited<T[P]> | undefined }> {
@@ -137,29 +115,32 @@ export class LeakyIterator<TThing, TReturn> extends ChunkyIterator<TThing, TRetu
   }
 }
 
-export async function* rate_limit<TThing, TResult>(
+export async function* map<TThing, TResult>(
   iter: ChunkyIterator<TThing, unknown>,
   fn: (thing: TThing) => Promise<TResult>,
-  limit: number = 1, // concurrency
+  concurrency: number = 1, // concurrency
 ) {
   let active: Promise<TResult>[] = [];
   let results: TResult[] = [];
 
+  // once we create the promise to iterate we need to use it
+  // or we could skip or drop elements.
   let iter_prom;
   while (true) {
-    const open = Math.max(limit - active.length, 0);
+    const open = Math.max(concurrency - active.length, 0);
     if (!iter_prom && open > 0) {
       iter_prom = iter_prom ?? iter.next(open);
     }
 
-    const [iter_result, ... _rest] = await any_va([
+    const [first, ... _rest] = await any_va([
       ... iter_prom ? [iter_prom] : [],
       ... active,
     ]);
     
-    if (iter_prom && iter_result) {
+    if (iter_prom && first) {
+      const iter_result = <IteratorResult<TThing[], unknown>>first;
       iter_prom = undefined;
-      if ((<IteratorResult<TThing[], unknown>>iter_result).done) break;
+      if (iter_result.done) break;
       
       // create new promises if the iterator returned
       const promises = (<IteratorYieldResult<TThing[]>>iter_result).value.map(p => fn(p))
@@ -175,72 +156,9 @@ export async function* rate_limit<TThing, TResult>(
     results = [];
   }
 
+  // drain the remaining promises
   while (active.length) {
     await Promise.any(active)
-    yield* results;
-    results = [];
-  }
-}
-
-export async function* limit<TThing, TResult>(
-  source: AsyncIterable<TThing>,
-  fn: (thing: TThing) => Promise<TResult>,
-  limit: number, // bucket size (both concurrent jobs and bucket capacity)
-  rate: number,  // ms it takes for 1 spot to leak
-) {
-  let level = 0;
-  let last = Date.now();
-  let done = false;
-  let active: Promise<TResult>[] = [];
-  let results: TResult[] = [];
-
-  const iter = source[Symbol.asyncIterator]();
-
-  while (!done) {
-    let things: TThing[] = [], _rest;
-
-    // recalc bucket level
-    const now = Date.now();
-    const leaked = (now - last) / rate;
-    last = now;
-    level = Math.max(level - leaked, 0);
-
-    // number of things to take
-    const open = Math.floor(Math.min(
-      Math.max(limit - level, 0),
-      Math.max(limit - active.length, 0),
-    ));
-    // time til more capacity if at limit
-    const delay = Math.max(0, (level - (limit - 1)) * rate);
-    const other = [
-      // if we are over capacity we should wait til we have more
-      ... delay > 0 ? [sleep(delay)] : [],
-      // if any of the active finish we should yield the result
-      ... active
-    ]
-    if (open > 0) {
-      ([
-        [ things, done ], 
-        ... _rest
-      ] = await any_va([
-        with_return<TThing, boolean>(take(open, iter)),
-        ... other,
-      ]));
-    } else {
-      await Promise.any(other);
-    }
-    
-    // create new promises if the iterator returned
-    level += things.length;
-    const promises = things.map(p => fn(p))
-    active = [ ... active, ... promises ]
-    promises.map(p => p.then((res) => { 
-      // REVIEW: I don't love this for state management. 
-      active.splice(active.indexOf(p), 1)
-      results.push(res)
-    }))
-    
-    console.log(results);
     yield* results;
     results = [];
   }
