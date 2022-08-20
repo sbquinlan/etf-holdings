@@ -58,7 +58,7 @@ export async function genFormattedFunds(): Promise<Array<iSharesRecord>> {
     );
   return await to_array(
     rate_limit(
-      partials, 
+      partials,
       async (p) => {
         const holdingsUrl = await genHoldingsURI(p.productPageUrl);
         return <iSharesRecord>{ ...p, holdingsUrl };
