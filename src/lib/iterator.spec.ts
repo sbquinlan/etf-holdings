@@ -1,4 +1,4 @@
-import { range, collect, leaky, pool } from './iterator';
+import { range, collect, leaky, pool } from './iterator.js';
 
 async function* asyncRange(n: number) {
   for await (const x of range(n)) yield x;
@@ -17,7 +17,7 @@ describe('collect', () => {
   });
 });
 
-describe('rate_limit', () => {
+describe('leaky', () => {
   it('should work with empty iterator', async () => {
     const iter = asyncRange(0)[Symbol.asyncIterator]();
     const result = await collect(leaky(iter, 3, 100));

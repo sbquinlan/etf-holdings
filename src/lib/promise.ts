@@ -60,18 +60,18 @@ export class Deferred<T> extends Promise<T> {
       temp_res = res;
       temp_rej = rej;
     });
-    this.resolve = (val: T | PromiseLike<T>) => { 
-      if (this.settled) return;
-        // @ts-ignore setting readonly in the constructor sorta.
-      this.resolved = true; 
-      temp_res(val);
-    }
-    this.reject = (val: any) => { 
+    this.resolve = (val: T | PromiseLike<T>) => {
       if (this.settled) return;
       // @ts-ignore setting readonly in the constructor sorta.
-      this.rejected = true; 
+      this.resolved = true;
+      temp_res(val);
+    };
+    this.reject = (val: any) => {
+      if (this.settled) return;
+      // @ts-ignore setting readonly in the constructor sorta.
+      this.rejected = true;
       temp_rej(val);
-    }
+    };
   }
 
   public get settled() {

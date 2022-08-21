@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import { to_array, rate_limit } from './async_util.js';
+import { collect, leaky, map } from './lib/iterator.js';
 
 interface BlackrockListingTable {
   columns: Array<{ name: string }>;
@@ -49,22 +49,23 @@ export async function genFormattedFunds(): Promise<Array<iSharesRecord>> {
     fund_payload.columns.map((col, idx) => [col.name, idx])
   );
   const record_entries = Object.entries(column_to_index).filter(isRecordEntry);
-  const partials = fund_payload.data
+  const partials: Iterable<Partial<iSharesRecord>> = fund_payload.data
     // filter out all non-etfs
     .filter((row) => row[column_to_index['productView']]?.at(1) === 'ishares')
     // add in holdings uri
     .map((row) =>
       Object.fromEntries(record_entries.map(([name, idx]) => [name, row[idx]]))
-    );
-  return await to_array(
-    rate_limit(
-      partials,
+    )
+    .values();
+  return await collect(
+    map(
+      leaky(partials, 3, 1000),
       async (p) => {
-        const holdingsUrl = await genHoldingsURI(p.productPageUrl);
+        console.log(p.fundShortName)
+        const holdingsUrl = await genHoldingsURI(p.productPageUrl!);
         return <iSharesRecord>{ ...p, holdingsUrl };
       },
-      1,
-      1000
+      3
     )
   );
 }

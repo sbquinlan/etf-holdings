@@ -1,5 +1,5 @@
-import { Channel, PairedPromise } from './channel';
-import { collect } from './iterator'
+import { Channel, PairedPromise } from './channel.js';
+import { collect } from './iterator.js';
 
 describe('Paired Promise', () => {
   it('should resolve right', async () => {
@@ -10,7 +10,7 @@ describe('Paired Promise', () => {
     expect(await pair.left()).toEqual(10);
     expect((<any>pair)._left.resolved).toEqual(true);
     expect((<any>pair)._right.resolved).toEqual(true);
-  })
+  });
 
   it('should resolve left', async () => {
     const pair = new PairedPromise<void, number>();
@@ -20,8 +20,8 @@ describe('Paired Promise', () => {
     expect(await pair.right()).toEqual(10);
     expect((<any>pair)._right.resolved).toEqual(true);
     expect((<any>pair)._left.resolved).toEqual(true);
-  })
-})
+  });
+});
 
 describe('Channel', () => {
   it('should pass a value', async () => {
@@ -42,19 +42,19 @@ describe('Channel', () => {
 
   it('should pass values to an iterator', async () => {
     const chan = new Channel();
-    
+
     chan.push(10);
     chan.push(9);
     chan.push(8);
     chan.push(7, true);
     const result = collect(chan);
     expect(await result).toEqual([10, 9, 8]);
-  })
+  });
 
   it('should pass values to an iterator created before push', async () => {
     const chan = new Channel();
     const result = collect(chan);
-    
+
     chan.push(10);
     chan.push(9);
     chan.push(8);
@@ -70,9 +70,9 @@ describe('Channel', () => {
     chan.push(9, true);
 
     expect(await reads).toEqual([
-      { value: 10, done: false }, 
-      { value: undefined, done: true }, 
-      { value: undefined, done: true }
+      { value: 10, done: false },
+      { value: undefined, done: true },
+      { value: undefined, done: true },
     ]);
   });
 

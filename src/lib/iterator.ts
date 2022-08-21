@@ -1,4 +1,4 @@
-import { sleep, any_partition } from './promise';
+import { sleep, any_partition } from './promise.js';
 
 export function isAsyncIterable<TThing>(
   maybe_iterable: any

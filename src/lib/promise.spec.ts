@@ -1,4 +1,4 @@
-import { sleep, any_va, any_partition, Deferred } from './promise';
+import { sleep, any_va, any_partition, Deferred } from './promise.js';
 
 describe('defer', () => {
   it('should resolve', async () => {
