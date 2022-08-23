@@ -1,8 +1,24 @@
-import { genFormattedFunds } from './blackrock.js';
-
-async function main() {
-  const funds = await genFormattedFunds();
-  console.log(funds);
+export interface FundRow {
+  ticker: string;
+  name: string;
 }
 
-main();
+export interface HoldingRow {
+  ticker: string;
+  name: string;
+  last: number;
+}
+
+export interface FundHoldingRow {
+  fund: string;
+  holding: string;
+  weight: number; // 11.0 means 11%
+}
+
+export abstract class Factory<TFundRow extends FundRow> {
+  abstract genFunds(): Promise<Array<TFundRow>>;
+  abstract genHoldings(
+    row: TFundRow
+  ): Promise<[HoldingRow[], FundHoldingRow[]]>;
+}
+

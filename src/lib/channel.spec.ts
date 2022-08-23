@@ -1,5 +1,5 @@
 import { Channel, PairedPromise } from './channel.js';
-import { collect } from './iterator.js';
+import { sink } from './iterator.js';
 
 describe('Paired Promise', () => {
   it('should resolve right', async () => {
@@ -47,13 +47,13 @@ describe('Channel', () => {
     chan.push(9);
     chan.push(8);
     chan.push(7, true);
-    const result = collect(chan);
+    const result = sink(chan);
     expect(await result).toEqual([10, 9, 8]);
   });
 
   it('should pass values to an iterator created before push', async () => {
     const chan = new Channel();
-    const result = collect(chan);
+    const result = sink(chan);
 
     chan.push(10);
     chan.push(9);

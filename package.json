@@ -10,7 +10,7 @@
     "clean": "rm dist/*",
     "dev": "vite",
     "build": "tsc",
-    "start": "yarn build && node dist/download.js",
+    "start": "yarn build && node dist/main.js",
     "pretty": "prettier -c .",
     "test": "yarn node --experimental-vm-modules $(yarn bin jest)"
   },

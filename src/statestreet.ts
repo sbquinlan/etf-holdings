@@ -1,15 +1,18 @@
 import fetch from 'node-fetch';
-import type { HoldingRow } from './vanguard_types.js';
+import type { SPDRFundRow } from './statestreet_types.js';
+import { HoldingRow } from './download.js';
 
-const URI_BASE = 'https://investor.vanguard.com';
-
-export async function genVanguardFunds() {
-  const resp = await fetch(`${URI_BASE}/investment-products/list/funddetail`);
+const URI_BASE = 'https://www.ssga.com';
+export async function genFunds() {
+  const resp = await fetch(
+    `${URI_BASE}/bin/v1/ssmp/fund/fundfinder?country=us&language=en&role=intermediary&product=etfs&ui=fund-finder`
+  );
   if (!resp.ok) {
     const msg = await resp.text();
     throw new Error(`${resp.status} ${resp.statusText}: ${msg}`);
   }
-  return await resp.json();
+  const payload = await resp.json();
+  return (<any>payload).data.funds.etfs.datas as SPDRFundRow[];
 }
 
 export async function genHoldings(ticker: string) {

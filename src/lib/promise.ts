@@ -4,9 +4,19 @@ export async function sleep(delay: number) {
   });
 }
 
+// Convienence type for matching args to outputs
 type OptionalMappedPromises<T extends readonly Promise<unknown>[]> = {
   -readonly [P in keyof T]: Awaited<T[P]> | undefined;
 };
+
+/**
+ * any_va takes an array/tuple of Promises and returns the first result 
+ * from those promises. The catch is that the return type is an empty 
+ * array except for the one result that finished first, in the same
+ * position as the promise that resolved. This, plus the typing,
+ * is slightly helpful in cases where you want any promise that finishes
+ * but you also need to know what finished.
+ */
 export async function any_va<T extends readonly Promise<unknown>[]>(
   proms: [...T]
 ): Promise<OptionalMappedPromises<T>> {
@@ -27,7 +37,13 @@ export async function any_va<T extends readonly Promise<unknown>[]>(
   });
 }
 
-// basically like const [resolved, ... rest] = Promise.any([]) if it worked that way.
+/**
+ * any_partition() is like Promise.any() but the tuple it returns 
+ * contains both the result (first element) and the promises that 
+ * didn't resolve yet as an array (second element).
+ * 
+ * Basically like ```const [resolved, ... rest] = Promise.any([...])``` 
+ */
 export async function any_partition<TThing>(
   proms: Promise<TThing>[]
 ): Promise<[TThing | undefined, Promise<TThing>[]]> {
@@ -46,8 +62,17 @@ export async function any_partition<TThing>(
   });
 }
 
-export type PromiseResolve<T> = (value: T | PromiseLike<T>) => void;
-export type PromiseReject = (reason?: any) => void;
+type PromiseResolve<T> = (value: T | PromiseLike<T>) => void;
+type PromiseReject = (reason?: any) => void;
+/**
+ * Deferred is a Promise that exposes it's resolve() and reject() 
+ * as class properties as well as it's settled state. The primary
+ * use case of this is to reverse the API. Meaning, if you wanted 
+ * to give some abstraction a promise rather than giving some 
+ * abstraction the settle callbacks.
+ * 
+ * Being an event listener vs being the event emitter.
+ */
 export class Deferred<T> extends Promise<T> {
   public readonly resolve: PromiseResolve<T>;
   public readonly reject: PromiseReject;
