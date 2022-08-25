@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
-import { sink, pool, sluice, map } from './lib/iterator.js';
+import { pool, sluice, map } from './lib/iterator.js';
+import { sink } from './lib/iterable.js';
 
 import {
   BlackrockListingTable,
@@ -8,6 +9,7 @@ import {
   BlackrockHoldingRecord,
 } from './blackrock_types.js';
 import { FundRow, HoldingRow, FundHoldingRow, Factory } from './download.js';
+import { fluent } from './lib/fluent.js';
 
 const URI_BASE = 'https://www.blackrock.com';
 const HOLDINGS_REGEX =
@@ -26,7 +28,7 @@ export class BlackrockFactory extends Factory<BlackrockFundRow> {
     return raw.match(HOLDINGS_REGEX)?.at(0);
   }
 
-  async genFunds(): Promise<Array<BlackrockFundRow>> {
+  async genFunds() {
     const resp = await fetch(
       `${URI_BASE}/us/individual/product-screener/product-screener-v3.jsn?dcrPath=/templatedata/config/product-screener-v3/data/en/one/one-v4`
     );
@@ -46,24 +48,27 @@ export class BlackrockFactory extends Factory<BlackrockFundRow> {
         ) as BlackrockFundRecord
       )
       // filter out non-etfs
-      .filter((record) => record.productView[1] === 'ishares')
-      .filter(record => record.aladdinAssetClass === 'equity')
+      .filter(record => record.productView[1] === 'ishares')
+      .filter(record => record.aladdinAssetClass === 'Equity')
       .values();
-    const limited = sluice(partials, 3, 1000); // 1 every second (up to 3 burst)
-    const mapped = map(
-      limited,
-      async (p) => {
-        console.log(p.fundShortName);
-        const holdingsURI = await this.genHoldingsURI(p.productPageUrl!);
-        return {
-          ticker: p.localExchangeTicker,
-          name: p.fundShortName,
-          holdingsURI,
-        };
-      },
+    return sink(
+      fluent(
+        partials,
+        sluice(3, 1000),
+        map(
+          async (p) => {
+            console.log(p.fundShortName);
+            const holdingsURI = await this.genHoldingsURI(p.productPageUrl!);
+            return {
+              ticker: p.localExchangeTicker,
+              name: p.fundShortName,
+              holdingsURI,
+            };
+          },
+        ),
+        pool(3),
+      ),
     );
-    const pooled = pool(mapped, 3);
-    return await sink(pooled);
   }
 
   async genHoldings(
