@@ -1,80 +1,23 @@
+import { OperatorAsyncFunction } from './fluent.js';
+import { upsync } from './iterable.js';
 import { sleep, any_partition } from './promise.js';
 
-/**
- * TODOs:
- * - No tests on throwing inside an iterable
- */
-
-export function isAsyncIterable<TThing>(
-  maybe_iterable: any
-): maybe_iterable is AsyncIterable<TThing> {
-  return Symbol.asyncIterator in maybe_iterable;
-}
-
-export function isIterable<TThing>(
-  maybe_iterable: any
-): maybe_iterable is Iterable<TThing> {
-  return Symbol.iterator in maybe_iterable;
-}
-
-export async function *make_async<TThing>(
-  upstream: Iterable<TThing>,
-) {
-  for await (const thing of upstream) yield thing;
-}
-
-/**
- * Very shitty version of python's range() that only supports
- * the most basic (and most useful) functionality of generating
- * a range from [0 - n) incrementing by 1.
- */
-export function* range(n: number) {
-  n = Math.max(0, n);
-  for (let i = 0; i < n; i++) yield i;
-}
-
-/**
- * sink() pulls things from an interator as fast as possible to make
- * and array. Think Array.from, but supporting AsyncIterables.
- */
-export async function sink<TThing>(
-  upstream: AsyncIterable<TThing> | Iterable<TThing>
-): Promise<Array<TThing>> {
-  const arr = [];
-  for await (const thing of upstream) {
-    arr.push(thing);
-  }
-  return arr;
-}
-/**
- * You might expect map() to be as simple as: 
- * 
- * ```
- * async function *map(...) {
- *   for await (const thing of upstream) yield call(thing)
- * }
- * ```
- * 
- * Which does work, in that it yields Awaited<TResult>. The issue is that
- * ```yield call(thing)``` will wait for the ```call(thing)``` to settle 
- * before yielding. Basically async generator's cannot directly yield
- * unsettled promises. This detail fucks up the other async iteration util
- * functions, which rely on map not waiting on promises, but constructing 
- * the promises and yielding them immediately.
- */
-class MappingIterator<TThing, TResult> implements AsyncIterableIterator<TResult> {
+class MappingIterator<TThing, TResult> implements AsyncIterableIterator<Awaited<TResult>> {
   private readonly iter: AsyncIterator<TThing>;
+  private done: boolean = false;
   constructor(
     upstream: AsyncIterable<TThing> | Iterable<TThing>,
     private readonly call: (thing: TThing) => TResult,
   ) {
-    this.iter = isAsyncIterable(upstream)
-      ? upstream[Symbol.asyncIterator]()
-      : make_async(upstream)
+    this.iter = upsync(upstream)[Symbol.asyncIterator]()
   }
 
-  async next(): Promise<IteratorResult<TResult, any>> {
+  async next(): Promise<IteratorResult<Awaited<TResult>, any>> {
+    if (this.done) {
+      return { value: undefined, done: true };
+    }
     const { value, done } = await this.iter.next();
+    this.done = this.done || done === true;
     return { value: done ? value : await this.call(value), done };
   }
 
@@ -83,15 +26,124 @@ class MappingIterator<TThing, TResult> implements AsyncIterableIterator<TResult>
   }
 }
 
+class LeakyBucketIterable<TThing> implements AsyncIterableIterator<TThing> {
+  private readonly iter: AsyncIterator<TThing>;
+  private readonly limit: number;
+  private readonly rate: number;
+
+  private level: number = 0;
+  private last: number = Date.now();
+  private done: boolean = false;
+  constructor(
+    upstream: AsyncIterable<TThing> | Iterable<TThing>,
+    limit: number,
+    rate: number,
+  ) {
+    this.iter = upsync(upstream)[Symbol.asyncIterator]()
+    this.limit = Math.floor(Math.max(1, limit));
+    this.rate = Math.floor(Math.max(0, rate));
+  }
+
+  async next(): Promise<IteratorResult<TThing, any>> {
+    // calc leaked amount
+    const now = Date.now();
+    const leaked = (now - this.last) / this.rate;
+    this.last = now;
+
+    // update level
+    this.level = Math.max(this.level - leaked + 1, 0);
+
+    // do we need to wait for more to leak?
+    const delay = Math.max((this.level - this.limit) * this.rate, 0);
+    if (delay > 0) {
+      await sleep(delay);
+      if (this.done) {
+        return { done: true, value: undefined };
+      }
+    }
+    const result = await this.iter.next();
+    this.done = this.done || result.done === true;
+    return result;
+  }
+
+  [Symbol.asyncIterator]() {
+    return this;
+  }
+}
+
+
+class PoolIterable<TThing> implements AsyncIterable<TThing> {
+  private readonly concurrency: number;
+  constructor(
+    private upstream: AsyncIterable<TThing> | Iterable<TThing>,
+    concurrency: number
+  ) {
+    this.concurrency = Math.floor(Math.max(0, concurrency))
+  }
+
+  async *[Symbol.asyncIterator]() {
+    const iter = upsync(this.upstream)[Symbol.asyncIterator]()
+    let result,
+      done = false,
+      active: Promise<IteratorResult<TThing>>[] = [];
+  
+    do {
+      while (!done && active.length < this.concurrency) {
+        active.push(iter.next());
+      }
+      [result, active] = await any_partition(active);
+      done = done || result?.done === true;
+      if (!result?.done) {
+        yield result!.value;
+      }
+    } while (!done || active.length);
+  }
+}
+
+class WindowIterable<TThing> implements AsyncIterable<TThing> {
+  private readonly concurrency: number;
+  constructor(
+    private upstream: AsyncIterable<TThing> | Iterable<TThing>,
+    concurrency: number
+  ) {
+    this.concurrency = Math.floor(Math.max(0, concurrency))
+  }
+
+  protected async settleBuffer(
+    active: Promise<IteratorResult<TThing>>[],
+  ): Promise<[IteratorResult<TThing> | undefined, Promise<IteratorResult<TThing>>[]]> {
+    const result = await active[0]
+    return [result, active.slice(1)];
+  }
+
+  async *[Symbol.asyncIterator]() {
+    const iter = upsync(this.upstream)[Symbol.asyncIterator]()
+    let result,
+      done = false,
+      active: Promise<IteratorResult<TThing>>[] = [];
+  
+    do {
+      while (active.length < this.concurrency) {
+        active.push(iter.next());
+      }
+      [result, active] = await this.settleBuffer(active);
+      done = done || result?.done === true;
+      if (!result?.done) {
+        yield result!.value;
+      }
+    } while (!done);
+  }
+}
+
 /**
  * map() is extremely similar to Array.map() with the 
  * added benefit that it can be used over iterators.
  */
 export function map<TThing, TResult>(
-  upstream: AsyncIterable<TThing> | Iterable<TThing>,
   call: (thing: TThing) => TResult,
-) {
-  return new MappingIterator(upstream, call);
+): OperatorAsyncFunction<TThing, Awaited<TResult>> {
+  return (upstream: AsyncIterable<TThing> | Iterable<TThing>) => 
+    new MappingIterator(upstream, call);
 }
 
 /**
@@ -107,34 +159,12 @@ export function map<TThing, TResult>(
  * burst 3 iterations until it hits the limit of 3, then wait 1 second 
  * until the next iteration.
  */
-export async function* sluice<TThing>(
-  upstream: AsyncIterable<TThing> | Iterable<TThing>,
+export function sluice<TThing>(
   limit: number,
-  rate: number
-) {
-  limit = Math.floor(Math.max(1, limit));
-  rate = Math.floor(Math.max(0, rate));
-
-  let level = 0,
-    last = Date.now();
-
-  for await (const thing of upstream) {
-    yield thing;
-
-    // calc leaked amount
-    const now = Date.now();
-    const leaked = (now - last) / rate;
-    last = now;
-
-    // update level
-    level = Math.max(level - leaked + 1, 0);
-
-    // do we need to wait for more to leak?
-    const delay = Math.max((level - (limit - 1)) * rate, 0);
-    if (delay > 0) {
-      await sleep(delay);
-    }
-  }
+  rate: number,
+): OperatorAsyncFunction<TThing, TThing> {
+  return (upstream: AsyncIterable<TThing> | Iterable<TThing>) => 
+    new LeakyBucketIterable(upstream, limit, rate);
 }
 
 /**
@@ -146,26 +176,11 @@ export async function* sluice<TThing>(
  * reorders the upstream based on a sliding window of which 
  * promises resolve first. 
  */
-export async function* pool<TThing>(
-  upstream: AsyncIterable<TThing> | Iterable<TThing>,
+export function pool<TThing>(
   concurrency: number = 1 // pool size
-): AsyncGenerator<Awaited<TThing>> {
-  concurrency = Math.floor(Math.max(0, concurrency))
-  const iter = isAsyncIterable(upstream)
-    ? upstream[Symbol.asyncIterator]()
-    : make_async(upstream);
-  let result,
-    done = false,
-    active: Promise<IteratorResult<TThing>>[] = [];
-
-  do {
-    while (!done && active.length < concurrency) {
-      active.push(iter.next());
-    }
-    [result, active] = await any_partition(active);
-    if (!result?.done) yield result!.value;
-    done = done || result?.done === true;
-  } while (!done || active.length);
+): OperatorAsyncFunction<TThing, TThing> {
+  return (upstream: AsyncIterable<TThing> | Iterable<TThing>) => 
+    new PoolIterable(upstream, concurrency);
 }
 
 /**
@@ -176,24 +191,9 @@ export async function* pool<TThing>(
  * being that pool() uses a Promise.any() like approach to waiting
  * for the concurrently running promises.
  */
-export async function* window<TThing>(
-  upstream: AsyncIterable<TThing> | Iterable<TThing>,
-  concurrency: number = 1 // pool size
-): AsyncGenerator<Awaited<TThing>> {
-  concurrency = Math.floor(Math.max(0, concurrency))
-  const iter = isAsyncIterable(upstream)
-    ? upstream[Symbol.asyncIterator]()
-    : make_async(upstream);
-  let done = false,
-    active: Promise<IteratorResult<TThing>>[] = [];
-
-  do {
-    while (!done && active.length < concurrency) {
-      active.push(iter.next());
-    }
-    let result = await active[0]
-    active = active.slice(1);
-    if (!result?.done) yield result!.value;
-    done = done || result?.done === true;
-  } while (!done || active.length);
+export function window<TThing>(
+  concurrency: number = 1 // window size
+): OperatorAsyncFunction<TThing, TThing> {
+  return (upstream: AsyncIterable<TThing> | Iterable<TThing>) => 
+    new WindowIterable(upstream, concurrency)
 }
