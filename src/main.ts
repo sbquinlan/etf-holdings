@@ -1,7 +1,8 @@
-import { BlackrockFactory } from './blackrock.js';
 import { fluent } from './lib/fluent.js';
 import { sink } from './lib/iterable.js';
 import { sluice, pool } from './lib/iterator.js';
+
+import { BlackrockFactory } from './blackrock.js';
 import { VanguardFactory } from './vanguard.js';
 
 async function main() {
