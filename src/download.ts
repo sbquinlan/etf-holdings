@@ -15,10 +15,7 @@ export interface FundHoldingRow {
   weight: number; // 11.0 means 11%
 }
 
-export abstract class Factory<TFundRow extends FundRow> {
-  abstract genFunds(): Promise<Array<TFundRow>>;
-  abstract genHoldings(
-    row: TFundRow
-  ): Promise<[HoldingRow[], FundHoldingRow[]]>;
+export abstract class Factory {
+  abstract genFunds(): AsyncIterable<[FundRow, HoldingRow[], FundHoldingRow[]]>;
 }
 
