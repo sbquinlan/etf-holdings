@@ -916,6 +916,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"adler-32@npm:~1.3.0":
+  version: 1.3.1
+  resolution: "adler-32@npm:1.3.1"
+  checksum: c7f6b02df64a4392fcf1591862344f56733716a558e97a8b06a553dadeeaec792054512389000f42f371b13d2be5370e056e18db3b573944b595c4cb7742c5c6
+  languageName: node
+  linkType: hard
+
 "agent-base@npm:6, agent-base@npm:^6.0.2":
   version: 6.0.2
   resolution: "agent-base@npm:6.0.2"
@@ -1234,6 +1241,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"cfb@npm:~1.2.1":
+  version: 1.2.2
+  resolution: "cfb@npm:1.2.2"
+  dependencies:
+    adler-32: ~1.3.0
+    crc-32: ~1.2.0
+  checksum: cfb63a7d630a7fa415c1b25655dca66666584f29c95fb0ee90866ada1a28090857827f2ba70a9a50df28bdce05728ae58d495bce417249f305ef7b3c85840024
+  languageName: node
+  linkType: hard
+
 "chalk@npm:^2.0.0":
   version: 2.4.2
   resolution: "chalk@npm:2.4.2"
@@ -1305,6 +1322,13 @@ __metadata:
   version: 4.6.0
   resolution: "co@npm:4.6.0"
   checksum: 5210d9223010eb95b29df06a91116f2cf7c8e0748a9013ed853b53f362ea0e822f1e5bb054fb3cefc645239a4cf966af1f6133a3b43f40d591f3b68ed6cf0510
+  languageName: node
+  linkType: hard
+
+"codepage@npm:~1.15.0":
+  version: 1.15.0
+  resolution: "codepage@npm:1.15.0"
+  checksum: 86bdfd8f8fd4d78ace6ddab02a1621cbb4a833686fe886984b4155d99cd0287581d69495774b816ab2f571c4dc851c1595e1dbb8d69bd6dbb5a631ebf317fab0
   languageName: node
   linkType: hard
 
@@ -1385,6 +1409,15 @@ __metadata:
   dependencies:
     safe-buffer: ~5.1.1
   checksum: 985d974a2d33e1a2543ada51c93e1ba2f73eaed608dc39f229afc78f71dcc4c8b7d7c684aa647e3c6a3a204027444d69e53e169ce94e8d1fa8d7dee80c9c8fed
+  languageName: node
+  linkType: hard
+
+"crc-32@npm:~1.2.0, crc-32@npm:~1.2.1":
+  version: 1.2.2
+  resolution: "crc-32@npm:1.2.2"
+  bin:
+    crc32: bin/crc32.njs
+  checksum: ad2d0ad0cbd465b75dcaeeff0600f8195b686816ab5f3ba4c6e052a07f728c3e70df2e3ca9fd3d4484dc4ba70586e161ca5a2334ec8bf5a41bf022a6103ff243
   languageName: node
   linkType: hard
 
@@ -1551,6 +1584,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"etf-holdings@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "etf-holdings@workspace:."
+  dependencies:
+    "@tsconfig/node16": ^1.0.3
+    "@types/jest": ^28.1.6
+    "@types/node": ^18.6.3
+    "@types/node-fetch": ^2.6.2
+    jest: ^28.1.3
+    node-fetch: ^3.2.10
+    prettier: ^2.7.1
+    quinzlib: "https://github.com/sbquinlan/quinzlib#v1.0.5"
+    ts-jest: ^28.0.7
+    typescript: ^4.8.2
+    xlsx: ^0.18.5
+  languageName: unknown
+  linkType: soft
+
 "execa@npm:^5.0.0":
   version: 5.1.1
   resolution: "execa@npm:5.1.1"
@@ -1650,6 +1701,13 @@ __metadata:
   dependencies:
     fetch-blob: ^3.1.2
   checksum: 82a34df292afadd82b43d4a740ce387bc08541e0a534358425193017bf9fb3567875dc5f69564984b1da979979b70703aa73dee715a17b6c229752ae736dd9db
+  languageName: node
+  linkType: hard
+
+"frac@npm:~1.1.2":
+  version: 1.1.2
+  resolution: "frac@npm:1.1.2"
+  checksum: fbfbb28003bb84506dd35e7aad8543c5a358bdc95451d0065b6127d40d2c45106f14221575c3e9ce3ea4bf0bbf1225b73c5d655965c9f4ce44332cbe1b34667d
   languageName: node
   linkType: hard
 
@@ -2527,23 +2585,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"kobidge@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "kobidge@workspace:."
-  dependencies:
-    "@tsconfig/node16": ^1.0.3
-    "@types/jest": ^28.1.6
-    "@types/node": ^18.6.3
-    "@types/node-fetch": ^2.6.2
-    jest: ^28.1.3
-    node-fetch: ^3.2.10
-    prettier: ^2.7.1
-    quinzlib: "https://github.com/sbquinlan/quinzlib#v1.0.5"
-    ts-jest: ^28.0.7
-    typescript: ^4.8.2
-  languageName: unknown
-  linkType: soft
-
 "leven@npm:^3.1.0":
   version: 3.1.0
   resolution: "leven@npm:3.1.0"
@@ -3310,6 +3351,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"ssf@npm:~0.11.2":
+  version: 0.11.2
+  resolution: "ssf@npm:0.11.2"
+  dependencies:
+    frac: ~1.1.2
+  checksum: 6ecef6ae0a90e67dc4b05bc3cca883e2dffad9773b41124af36ee308884e4a29f98bde66d6c8d2bd1ccf5f860ea4f6c49338bd8d733007fc42ebe02dd5295dcf
+  languageName: node
+  linkType: hard
+
 "ssri@npm:^9.0.0":
   version: 9.0.1
   resolution: "ssri@npm:9.0.1"
@@ -3643,6 +3693,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"wmf@npm:~1.0.1":
+  version: 1.0.2
+  resolution: "wmf@npm:1.0.2"
+  checksum: d336acb2c76fa868ef006fbb06c4e64c7c1ed5ff77d16c48a273cf1f4d0a44e35df209b8fde28d93dd4a924d652a9c4fc8a92ad57885a5e437df0b0900769e3b
+  languageName: node
+  linkType: hard
+
+"word@npm:~0.3.0":
+  version: 0.3.0
+  resolution: "word@npm:0.3.0"
+  checksum: f84e7061883380c1bcb0d98bd183b7f2b281688011924af7a96d3ed3ee20aeb12cc59a0451b66e5e57520338a056725ff8e0c07b358c0afecf5488a9557c19fe
+  languageName: node
+  linkType: hard
+
 "wrap-ansi@npm:^7.0.0":
   version: 7.0.0
   resolution: "wrap-ansi@npm:7.0.0"
@@ -3668,6 +3732,23 @@ __metadata:
     imurmurhash: ^0.1.4
     signal-exit: ^3.0.7
   checksum: 8f780232533ca6223c63c9b9c01c4386ca8c625ebe5017a9ed17d037aec19462ae17109e0aa155bff5966ee4ae7a27b67a99f55caf3f32ffd84155e9da3929fc
+  languageName: node
+  linkType: hard
+
+"xlsx@npm:^0.18.5":
+  version: 0.18.5
+  resolution: "xlsx@npm:0.18.5"
+  dependencies:
+    adler-32: ~1.3.0
+    cfb: ~1.2.1
+    codepage: ~1.15.0
+    crc-32: ~1.2.1
+    ssf: ~0.11.2
+    wmf: ~1.0.1
+    word: ~0.3.0
+  bin:
+    xlsx: bin/xlsx.njs
+  checksum: c5774d3c6abdf2db24f33a7b786e305255dac0e41a4e6bf6167c3f8517bfb5bfcb98e8207c39d5105f8304aa7416758da0400a993fb79aaf8e2ea4cfa8801f2e
   languageName: node
   linkType: hard
 

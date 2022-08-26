@@ -1,7 +1,8 @@
 import fetch from 'node-fetch';
 import { fluent, map } from 'quinzlib';
-import type { SPDRFundRow } from './statestreet_types.js';
+import type { SPDRFundRecord, SPDRHoldingRecord } from './statestreet_types.js';
 import { Factory, FundHoldingRow, FundRow, HoldingRow } from './download.js';
+import { read, utils } from 'xlsx';
 
 const URI_BASE = 'https://www.ssga.com';
 export class StateStreetFactory extends Factory {
@@ -30,15 +31,15 @@ export class StateStreetFactory extends Factory {
     }
     const payload = (await resp.json()) as any;
     // no way real to filter these
-    yield* (payload.data.funds.etfs.datas as SPDRFundRow[]).filter(
+    yield* (payload.data.funds.etfs.datas as SPDRFundRecord[]).filter(
       (row) =>
-        !~row.keywords.indexOf('Fixed Income') ||
-        !~row.keywords.indexOf('Alternative') ||
+        !~row.keywords.indexOf('Fixed Income') &&
+        !~row.keywords.indexOf('Alternative') &&
         !~row.keywords.indexOf('Multi-Asset')
     );
   }
 
-  private async genHoldingsTable(fund: SPDRFundRow) {
+  private async genHoldingsTable(fund: SPDRFundRecord) {
     const holdings_uri = fund.documentPdf
       .filter((docs) => docs.docType === 'Holdings-daily')
       .at(0)
@@ -46,28 +47,49 @@ export class StateStreetFactory extends Factory {
     if (!holdings_uri) {
       return [];
     }
-    // need excel to parse this uri.
+    const resp = await fetch(`${URI_BASE}${holdings_uri}`);
+    if (!resp.ok) {
+      const msg = await resp.text();
+      throw new Error(`${resp.status} ${resp.statusText}: ${msg}`);
+    }
+    const workbook = read(await resp.arrayBuffer());
+    const sheet = workbook.Sheets['holdings'];
+    if (!sheet) {
+      return [];
+    }
+    // The headers start on row 4 (0 indexed) as of this writing
+    const raw = utils.sheet_to_json(sheet, { range: 4 }) as any[];
+
+    // technically not sure the filtering is working so the excel format 
+    // could result in different labels than SPDRHoldingRecord
+    if (
+      'Name' in raw[0] && 'Ticker' in raw[0] && 'Weight' in raw[0]
+    ) {
+      return raw as SPDRHoldingRecord[];
+    }
     return [];
-  }
+  } 
 
   private async genHoldings(
-    fund: SPDRFundRow
+    fund: SPDRFundRecord
   ): Promise<[HoldingRow[], FundHoldingRow[]]> {
-    await this.genHoldingsTable(fund);
+    const records = await this.genHoldingsTable(fund);
     return [
-      [],
-      [],
-      // rows.map(record => ({
-      //   ticker: record.ticker,
-      //   name: record.shortName,
-      //   // jank but maybe it'll work
-      //   last: (parseFloat(record.marketValue) / parseFloat(record.sharesHeld))
-      // })),
-      // rows.map(record => ({
-      //   fund: fund.profile.ticker,
-      //   holding: record.ticker,
-      //   weight: parseFloat(record.percentWeight),
-      // }))
+      records.map(
+        r => ({
+          ticker: r.Ticker,
+          name: r.Name,
+          // doesn't have this :(
+          last: NaN,
+        }),
+      ),
+      records.map(
+        r => ({
+          fund: fund.fundTicker,
+          holding: r.Ticker,
+          weight: parseFloat(r.Weight),
+        }),
+      ),
     ];
   }
 }

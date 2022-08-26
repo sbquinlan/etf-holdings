@@ -36,7 +36,8 @@
   },
   "dependencies": {
     "node-fetch": "^3.2.10",
-    "quinzlib": "https://github.com/sbquinlan/quinzlib#v1.0.5"
+    "quinzlib": "https://github.com/sbquinlan/quinzlib#v1.0.5",
+    "xlsx": "^0.18.5"
   },
   "packageManager": "yarn@3.2.3"
 }

@@ -1,6 +1,6 @@
 type LabelAndData = [string, number | string];
 
-export interface SPDRFundRow {
+export interface SPDRFundRecord {
   domicile: string; // "US",
   fundName: string; // "SPDR® Blackstone High Income ETF",
   fundTicker: string; // "HYBL",
@@ -28,7 +28,7 @@ export interface SPDRFundRow {
   yr5_1: LabelAndData; // [-, -5e-324]
   yr10_1: LabelAndData; // [-, -5e-324]
   sinceInception_1: LabelAndData; // [-7.93%, -7.93]
-  primaryExchange: 'Cboe BZX Exchange, Inc';
+  primaryExchange: string, // 'Cboe BZX Exchange, Inc';
   closePrice: LabelAndData; // [$28.73, 28.73]
   bidAsk: LabelAndData; // [$28.73, 28.73]
   premiumDiscount: LabelAndData; // [0.48%, 0.48]
@@ -79,4 +79,15 @@ export interface SPDRFundRow {
       num: 13;
     }
   ];
+}
+
+export  interface SPDRHoldingRecord {
+  Name: string, // 'Boeing Company',
+  Ticker: string, // 'BA',
+  Identifier: string, // '09702310',
+  SEDOL: string, // '2108601',
+  Weight: string, // '0.589645',
+  Sector: string,  // 'Industrials',
+  'Shares Held': string, // '3510.000',
+  'Local Currency': string, // 'USD'
 }
