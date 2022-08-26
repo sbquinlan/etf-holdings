@@ -13,7 +13,7 @@ export interface VanguardFundRecord {
     style: string; // 'Bond Funds';
     type: string; // 'Short-Term Bond';
     category: string; // 'Short-Term Bond';
-    customizedStyle: string;  // 'Bond - Short-term Investment';
+    customizedStyle: string; // 'Bond - Short-term Investment';
     fixedIncomeInvestmentStyleId: string; // '1'
     fixedIncomeInvestmentStyleName: string; // 'Short-term Treasury';
     secDesignation: string; // '';

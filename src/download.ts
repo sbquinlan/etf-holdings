@@ -18,4 +18,3 @@ export interface FundHoldingRow {
 export abstract class Factory {
   abstract genFunds(): AsyncIterable<[FundRow, HoldingRow[], FundHoldingRow[]]>;
 }
-
