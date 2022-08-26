@@ -1,5 +1,7 @@
-import { backoff } from './backoff.js'
-import { map, range, sink, sluice } from './iterator.js';
+import { backoff } from './backoff.js';
+import { fluent } from './fluent.js';
+import { range, sink } from './iterable.js';
+import { map, sluice } from './iterator.js';
 
 class ThrowTill {
   private count: number = 0;
@@ -57,18 +59,22 @@ describe('backoff', () => {
   })
 
   it('should work in iterators', async () => {
-    const might_throw = map(
-      [... range(3)].map(_ => new ThrowTill(1)),
-      backoff(
-        async (thrower) => {
-          await thrower.try();
-          return 10;
-        },
-        10,
-        4
+    const might_throw = sink(
+      fluent(
+        [... range(3)].map(_ => new ThrowTill(1)),
+        map(
+          backoff(
+            async (thrower) => {
+              await thrower.try();
+              return 10;
+            },
+            10,
+            4
+          ),
+        ),
+        sluice(1, 50),
       ),
     );
-    const limited = sluice(might_throw, 1, 50);
-    await expect(sink(limited)).resolves.toEqual([10, 10, 10]);
+    await expect(might_throw).resolves.toEqual([10, 10, 10]);
   });
 })
