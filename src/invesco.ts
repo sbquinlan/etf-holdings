@@ -2,26 +2,14 @@
 import fetch from 'node-fetch';
 import Papa from 'papaparse';
 import { parse } from 'node-html-parser';
-import { fluent, map } from 'quinzlib';
 
-import { Factory, FundHoldingRow, FundRow, HoldingRow } from './download.js';
+import { Factory, FundRow, HoldingRow } from './download.js';
 import { InvescoHoldingRecord, InvescoFundRecord } from './invesco_types.js';
 
 const URI_BASE = 'https://www.invesco.com/';
 
-export class InvescoFactory extends Factory {
-  genFunds(): AsyncIterable<[FundRow, HoldingRow[], FundHoldingRow[]]> {
-    return fluent(
-      this.genFundsTable(),
-      map(async (fund) => {
-        console.log(fund.name, fund.ticker);
-        const [holdings, joins] = await this.genHoldings(fund);
-       return [fund, holdings, joins];
-      })
-    );
-  }
-
-  private async *genFundsTable() {
+export class InvescoFactory extends Factory<InvescoFundRecord, InvescoHoldingRecord> {
+  protected async *genFundsTable() {
     const resp = await fetch(
       `${URI_BASE}/us/financial-products/etfs/performance/main/performance/0?audienceType=Investor&action=getPerformance&FilterList=FCLASS_ASSET_TYPE%2526EQUITY&showNav=true&monthly=true`
     );
@@ -37,12 +25,17 @@ export class InvescoFactory extends Factory {
       row => {
         const labels = row.querySelectorAll('td:nth-child(1) > .fund-link > div > a');
         const [name, ticker] = Array.from(labels, div => div.innerText);
-        return { name, ticker };
+        return { name: name.trim(), ticker: ticker.trim().toUpperCase() };
       },
-    ) as InvescoFundRecord[];
+    );
   }
 
-  private async genHoldingsTable(fund: InvescoFundRecord) {
+  protected convertFundRecord(record: InvescoFundRecord): FundRow {
+    console.log(record);
+    return record;
+  }
+
+  protected async genHoldingsTable(fund: InvescoFundRecord) {
     const resp = await fetch(`${URI_BASE}/us/financial-products/etfs/holdings/main/holdings/0?audienceType=Investor&action=download&ticker=${fund.ticker}`);
     if (!resp.ok) {
       const msg = await resp.text();
@@ -54,25 +47,11 @@ export class InvescoFactory extends Factory {
     ).data as InvescoHoldingRecord[];
   } 
 
-  private async genHoldings(fund: InvescoFundRecord): Promise<[HoldingRow[], FundHoldingRow[]]> {
-    const records = await this.genHoldingsTable(fund);
-    console.log(records[0])
-    return [
-      records.map(
-        r => ({
-          ticker: r['Holding Ticker'],
-          name: r.Name,
-          // doesn't have this :(
-          last: NaN,
-        }),
-      ),
-      records.map(
-        r => ({
-          fund: r['Fund Ticker'].trim().toUpperCase(),
-          holding: r['Holding Ticker'].trim().toUpperCase(),
-          weight: parseFloat(r.Weight),
-        }),
-      ),
-    ];
+  protected convertHoldingRecord(f: InvescoFundRecord, r: InvescoHoldingRecord): HoldingRow {
+    return {
+      fund: r['Fund Ticker'].trim().toUpperCase(),
+      holding: r['Holding Ticker'].trim().toUpperCase(),
+      weight: parseFloat(r.Weight),
+    };
   }
 }

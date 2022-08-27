@@ -1,5 +1,4 @@
 import fetch from 'node-fetch';
-import { fluent, map } from 'quinzlib';
 
 import {
   BlackrockListingTable,
@@ -7,28 +6,13 @@ import {
   BlackrockHoldingColumns,
   BlackrockHoldingRecord,
 } from './blackrock_types.js';
-import { HoldingRow, FundHoldingRow, Factory, FundRow } from './download.js';
+import { HoldingRow, Factory, FundRow } from './download.js';
 
 const URI_BASE = 'https://www.blackrock.com';
 const HOLDINGS_REGEX =
   /\/us\/individual\/products\/\d+\/[^/]+\/\d+.ajax\?tab=all&fileType=json/;
-export class BlackrockFactory extends Factory {
-  genFunds(): AsyncIterable<[FundRow, HoldingRow[], FundHoldingRow[]]> {
-    return fluent(
-      this.genTableRows(),
-      map(async (p) => {
-        console.log(p.fundShortName);
-        const [holdings, joins] = await this.genHoldings(p);
-        const fund: FundRow = {
-          ticker: p.localExchangeTicker,
-          name: p.fundShortName,
-        };
-        return [fund, holdings, joins];
-      })
-    );
-  }
-
-  private async *genTableRows() {
+export class BlackrockFactory extends Factory<BlackrockFundRecord, BlackrockHoldingRecord> {
+  protected async *genFundsTable() {
     const resp = await fetch(
       `${URI_BASE}/us/individual/product-screener/product-screener-v3.jsn?dcrPath=/templatedata/config/product-screener-v3/data/en/one/one-v4`
     );
@@ -53,6 +37,14 @@ export class BlackrockFactory extends Factory {
       .filter((record) => record.aladdinAssetClass === 'Equity');
   }
 
+  protected convertFundRecord(p: BlackrockFundRecord): FundRow {
+    console.log(p.fundShortName);
+    return {
+      ticker: p.localExchangeTicker.trim().toUpperCase(),
+      name: p.fundShortName.trim(),
+    };
+  }
+
   private async genHoldingsURI(product_url: string) {
     const resp = await fetch(`${URI_BASE}${product_url}`);
     if (!resp.ok) {
@@ -64,12 +56,10 @@ export class BlackrockFactory extends Factory {
     return raw.match(HOLDINGS_REGEX)?.at(0);
   }
 
-  async genHoldings(
-    fund: BlackrockFundRecord
-  ): Promise<[HoldingRow[], FundHoldingRow[]]> {
-    const holdings_uri = await this.genHoldingsURI(fund.productPageUrl!);
+  protected async genHoldingsTable(fund_record: BlackrockFundRecord): Promise<BlackrockHoldingRecord[]> {
+    const holdings_uri = await this.genHoldingsURI(fund_record.productPageUrl!);
     if (!holdings_uri) {
-      return [[], []];
+      return [];
     }
     const resp = await fetch(`${URI_BASE}${holdings_uri}`);
     if (!resp.ok) {
@@ -80,23 +70,22 @@ export class BlackrockFactory extends Factory {
     const column_to_index: [string, number][] = BlackrockHoldingColumns.map(
       (name, idx) => [name, idx]
     );
-    const records: BlackrockHoldingRecord[] = payload.aaData.map(
+    return payload.aaData.map(
       (record: any[]) =>
         Object.fromEntries(
           column_to_index.map(([name, idx]) => [name, record[idx]])
         ) as BlackrockHoldingRecord
     );
-    return [
-      records.map((raw) => ({
-        ticker: raw.ticker,
-        name: raw.name,
-        last: raw.last.raw,
-      })),
-      records.map((raw) => ({
-        fund: fund.localExchangeTicker,
-        holding: raw.ticker,
-        weight: raw.weight.raw,
-      })),
-    ];
+  }
+
+  protected convertHoldingRecord(
+    fund: BlackrockFundRecord,
+    record: BlackrockHoldingRecord,
+  ): HoldingRow {
+    return {
+      fund: fund.localExchangeTicker.trim().toUpperCase(),
+      holding: record.ticker.trim().toUpperCase(),
+      weight: record.weight.raw,
+    }
   }
 }
