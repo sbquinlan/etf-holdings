@@ -47,7 +47,7 @@ export class InvescoFactory extends Factory<InvescoFundRecord, InvescoHoldingRec
     ).data as InvescoHoldingRecord[];
   } 
 
-  protected convertHoldingRecord(f: InvescoFundRecord, r: InvescoHoldingRecord): HoldingRow {
+  protected convertHoldingRecord(_f: InvescoFundRecord, r: InvescoHoldingRecord): HoldingRow {
     return {
       fund: r['Fund Ticker'].trim().toUpperCase(),
       holding: r['Holding Ticker'].trim().toUpperCase(),
