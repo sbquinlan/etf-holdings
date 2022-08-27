@@ -1,23 +1,78 @@
-// All the Invesco stuff is in HTML
 
-// fetch("https://www.invesco.com/us/financial-products/etfs/performance/main/performance/0?audienceType=Investor&action=getPerformance&FilterList=FCLASS_ASSET_TYPE%2526EQUITY&showNav=true&monthly=true", {
-//   "headers": {
-//     "accept": "application/json, text/plain, */*",
-//     "accept-language": "en-US,en;q=0.9,pt;q=0.8",
-//     "sec-ch-ua": "\"Chromium\";v=\"104\", \" Not A;Brand\";v=\"99\", \"Google Chrome\";v=\"104\"",
-//     "sec-ch-ua-mobile": "?0",
-//     "sec-ch-ua-platform": "\"macOS\"",
-//     "sec-fetch-dest": "empty",
-//     "sec-fetch-mode": "cors",
-//     "sec-fetch-site": "same-origin"
-//   },
-//   "referrer": "https://www.invesco.com/us/financial-products/etfs/performance?FilterList=%3A%3A%3AFCLASS_ASSET_TYPE%26EQUITY",
-//   "referrerPolicy": "strict-origin-when-cross-origin",
-//   "body": null,
-//   "method": "GET",
-//   "mode": "cors",
-//   "credentials": "include"
-// });
+import fetch from 'node-fetch';
+import Papa from 'papaparse';
+import { parse } from 'node-html-parser';
+import { fluent, map } from 'quinzlib';
 
-// https://www.invesco.com/us/financial-products/etfs/holdings?audienceType=Investor&ticker=PKW
-// https://www.invesco.com/us/financial-products/etfs/holdings/main/holdings/0?audienceType=Investor&action=download&ticker=PKW
+import { Factory, FundHoldingRow, FundRow, HoldingRow } from './download.js';
+import { InvescoHoldingRecord, InvescoFundRecord } from './invesco_types.js';
+
+const URI_BASE = 'https://www.invesco.com/';
+
+export class InvescoFactory extends Factory {
+  genFunds(): AsyncIterable<[FundRow, HoldingRow[], FundHoldingRow[]]> {
+    return fluent(
+      this.genFundsTable(),
+      map(async (fund) => {
+        console.log(fund.name, fund.ticker);
+        const [holdings, joins] = await this.genHoldings(fund);
+       return [fund, holdings, joins];
+      })
+    );
+  }
+
+  private async *genFundsTable() {
+    const resp = await fetch(
+      `${URI_BASE}/us/financial-products/etfs/performance/main/performance/0?audienceType=Investor&action=getPerformance&FilterList=FCLASS_ASSET_TYPE%2526EQUITY&showNav=true&monthly=true`
+    );
+    if (!resp.ok) {
+      const msg = await resp.text();
+      throw new Error(`${resp.status} ${resp.statusText}: ${msg}`);
+    }
+    const payload = parse(await resp.text());
+    // this one is more complicated than previously thought
+    const html_rows = payload.querySelectorAll('#etfPerformancesTable > tbody:not(.tablesorter-no-sort) tr');
+    yield* Array.from(
+      html_rows, 
+      row => {
+        const labels = row.querySelectorAll('td:nth-child(1) > .fund-link > div > a');
+        const [name, ticker] = Array.from(labels, div => div.innerText);
+        return { name, ticker };
+      },
+    ) as InvescoFundRecord[];
+  }
+
+  private async genHoldingsTable(fund: InvescoFundRecord) {
+    const resp = await fetch(`${URI_BASE}/us/financial-products/etfs/holdings/main/holdings/0?audienceType=Investor&action=download&ticker=${fund.ticker}`);
+    if (!resp.ok) {
+      const msg = await resp.text();
+      throw new Error(`${resp.status} ${resp.statusText}: ${msg}`);
+    }
+    return Papa.parse(
+      await resp.text(), 
+      { header: true, skipEmptyLines: true }
+    ).data as InvescoHoldingRecord[];
+  } 
+
+  private async genHoldings(fund: InvescoFundRecord): Promise<[HoldingRow[], FundHoldingRow[]]> {
+    const records = await this.genHoldingsTable(fund);
+    console.log(records[0])
+    return [
+      records.map(
+        r => ({
+          ticker: r['Holding Ticker'],
+          name: r.Name,
+          // doesn't have this :(
+          last: NaN,
+        }),
+      ),
+      records.map(
+        r => ({
+          fund: r['Fund Ticker'].trim().toUpperCase(),
+          holding: r['Holding Ticker'].trim().toUpperCase(),
+          weight: parseFloat(r.Weight),
+        }),
+      ),
+    ];
+  }
+}

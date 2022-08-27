@@ -93,17 +93,3 @@ export class StateStreetFactory extends Factory {
     ];
   }
 }
-
-export async function genHoldings(ticker: string) {
-  // Does not include bonds, short term reserve, currency, derivative, commedity, etc.
-  const resp = await fetch(
-    `${URI_BASE}/investment-products/etfs/profile/api/${ticker}/portfolio-holding/stock`
-  );
-  if (!resp.ok) {
-    const msg = await resp.text();
-    throw new Error(`${resp.status} ${resp.statusText}: ${msg}`);
-  }
-  // root.fund.entity
-  const holdings = (await resp.json()) as any;
-  return holdings.fund.entity as HoldingRow[];
-}
