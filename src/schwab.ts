@@ -1,4 +1,11 @@
-// All the Schwab stuff is in HTML
+/**
+ * All the schwab stuff is using wallst.com which is somewhat difficult to work with. 
+ * At the surface a straightforward HTML table scraping would work but requires multiple 
+ * requests and maybe some JS running. 
+ * 
+ * There is an underlying API backing the whole thing but the params are base64 encoded 
+ * binary data of some sort that I haven't spent the time to figure out.
+ */
 
 // https://www.schwab.com/research/etfs/tools/schwab-etfs
 // fetch("https://www.schwab.wallst.com/Prospect/Research/etfs/overview/schwabETFs.asp?initialWidth=1266&childId=schwab-responsive-iframe--14173&parentTitle=Charles%20Schwab&parentUrl=https%3A%2F%2Fwww.schwab.com%2Fresearch%2Fetfs%2Ftools%2Fschwab-etfs", {
