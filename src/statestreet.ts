@@ -53,12 +53,9 @@ export class StateStreetFactory extends Factory<SPDRFundRecord, SPDRHoldingRecor
 
     // technically not sure the filtering is working so the excel format 
     // could result in different labels than SPDRHoldingRecord
-    if (
-      'Name' in raw[0] && 'Ticker' in raw[0] && 'Weight' in raw[0]
-    ) {
-      return raw as SPDRHoldingRecord[];
-    }
-    return [];
+    return raw.filter(
+      r => 'Name' in r && 'Ticker' in r && 'Weight' in r
+    )
   }
 
   protected convertHoldingRecord(fund_record: SPDRFundRecord, r: SPDRHoldingRecord): HoldingRow {

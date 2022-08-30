@@ -1,10 +1,8 @@
 /**
  * All the schwab stuff is using wallst.com which is somewhat difficult to work with. 
  * At the surface a straightforward HTML table scraping would work but requires multiple 
- * requests and maybe some JS running. 
- * 
- * There is an underlying API backing the whole thing but the params are base64 encoded 
- * binary data of some sort that I haven't spent the time to figure out.
+ * requests and maybe some JS eval. There is an underlying API backing the whole thing 
+ * but it outputs a DOM structure in JSON so you might as well run the HTML scraping.
  */
 
 // https://www.schwab.com/research/etfs/tools/schwab-etfs
