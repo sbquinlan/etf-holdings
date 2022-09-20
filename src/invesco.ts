@@ -25,13 +25,13 @@ export class InvescoFactory extends Factory<InvescoFundRecord, InvescoHoldingRec
       row => {
         const labels = row.querySelectorAll('td:nth-child(1) > .fund-link > div > a');
         const [name, ticker] = Array.from(labels, div => div.innerText);
-        return { name: name.trim(), ticker: ticker.trim().toUpperCase() };
+        return { ticker: ticker.trim().toUpperCase(), name: name.trim() };
       },
     );
   }
 
   protected convertFundRecord(record: InvescoFundRecord): FundRow {
-    console.log(record);
+    console.log(record.name);
     return record;
   }
 

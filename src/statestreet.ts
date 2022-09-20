@@ -24,6 +24,7 @@ export class StateStreetFactory extends Factory<SPDRFundRecord, SPDRHoldingRecor
   }
 
   protected convertFundRecord(fund_record: SPDRFundRecord): FundRow {
+    console.log(fund_record.fundName.trim())
     return {
       ticker: fund_record.fundTicker.trim().toUpperCase(),
       name: fund_record.fundName.trim(),

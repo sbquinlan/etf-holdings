@@ -11,13 +11,26 @@ export interface HoldingRow {
   weight: number; // 11.0 means 11%
 }
 
+export class ErrorTF extends Error {
+  constructor(
+    public readonly fund: any,
+    public readonly inner: any,
+  ) {
+    super();
+  }
+}
+
 export abstract class Factory<TFundRecord, THoldingRecord> {
-  genFunds(): AsyncIterable<[FundRow, HoldingRow[]]> {
+  genFunds(): AsyncIterable<[FundRow, HoldingRow[]] | ErrorTF> {
     return fluent(
       this.genFundsTable(),
       map(async (fund_record) => {
-        const holdings = await this.genHoldings(fund_record);
-        return [this.convertFundRecord(fund_record), holdings];
+        try {
+          const holdings = await this.genHoldings(fund_record);
+          return [this.convertFundRecord(fund_record), holdings];
+        } catch(e: any) {
+          return new ErrorTF(fund_record, e);
+        }
       })
     );
   }

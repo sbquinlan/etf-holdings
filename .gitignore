@@ -114,3 +114,4 @@ dist
 **/*.pem
 keys/
 .venv
+etf-holdings.json

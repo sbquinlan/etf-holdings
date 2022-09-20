@@ -20,6 +20,7 @@ export class VanguardFactory extends Factory<VanguardFundRecord, VanguardHolding
   }
 
   protected convertFundRecord(fund_record: VanguardFundRecord): FundRow {
+    console.log(fund_record.profile.longName.trim());
     return {
       ticker: fund_record.profile.ticker.trim().toUpperCase(),
       name: fund_record.profile.longName.trim(),
