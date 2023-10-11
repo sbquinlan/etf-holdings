@@ -3,11 +3,17 @@ import { fluent, map } from "quinzlib";
 export interface FundRow {
   ticker: string;
   name: string;
+  cusip?: string;
+  holdings: HoldingRow[],
 }
 
 export interface HoldingRow {
-  fund: string;
-  holding: string;
+  ticker: string;
+  isin?: string;
+  cusip?: string;
+  sedol?: string;
+  ski?: string;
+  last: number;
   weight: number; // 11.0 means 11%
 }
 
@@ -21,13 +27,13 @@ export class ErrorTF extends Error {
 }
 
 export abstract class Factory<TFundRecord, THoldingRecord> {
-  genFunds(): AsyncIterable<[FundRow, HoldingRow[]] | ErrorTF> {
+  genFunds(): AsyncIterable<FundRow | ErrorTF> {
     return fluent(
       this.genFundsTable(),
       map(async (fund_record) => {
         try {
           const holdings = await this.genHoldings(fund_record);
-          return [this.convertFundRecord(fund_record), holdings];
+          return {... this.convertFundRecord(fund_record), holdings};
         } catch(e: any) {
           return new ErrorTF(fund_record, e);
         }
@@ -41,7 +47,7 @@ export abstract class Factory<TFundRecord, THoldingRecord> {
   }
   
   protected abstract genFundsTable(): AsyncIterable<TFundRecord>;
-  protected abstract convertFundRecord(fund_record: TFundRecord): FundRow;
+  protected abstract convertFundRecord(fund_record: TFundRecord): Omit<FundRow, 'holdings'>;
 
   protected abstract genHoldingsTable(fund_record: TFundRecord): Promise<THoldingRecord[]>;
   protected abstract convertHoldingRecord(

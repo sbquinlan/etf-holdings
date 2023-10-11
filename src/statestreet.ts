@@ -14,16 +14,26 @@ export class StateStreetFactory extends Factory<SPDRFundRecord, SPDRHoldingRecor
       throw new Error(`${resp.status} ${resp.statusText}: ${msg}`);
     }
     const payload = (await resp.json()) as any;
-    // no way real to filter these
+    
+    const equity_etfs = payload.data.funds.etfs.categories
+      .find((cat: any) => cat.key === 'assetclass')?.subCategories
+      ?.find((cat: any) => cat.key === 'equity')?.funds
+      ?.split('|');
+    const us_etfs = payload.data.funds.etfs.categories
+      .find((cat: any) => cat.key === 'geographical-exposure')?.subCategories
+      ?.find((cat: any) => cat.key === 'geographical-exposure')?.subCategories
+      ?.find((cat: any) => cat.key === 'investment-geography')?.subCategories
+      ?.find((cat: any) => cat.key === 'United-States')?.funds
+      ?.split('|');
+    
+    // set intersection of us_etfs and equity_etfs
+    const etfs = new Set(us_etfs?.filter((etf: string) => equity_etfs?.includes(etf)));
     yield* (payload.data.funds.etfs.datas as SPDRFundRecord[]).filter(
-      (row) =>
-        !~row.keywords.indexOf('Fixed Income') &&
-        !~row.keywords.indexOf('Alternative') &&
-        !~row.keywords.indexOf('Multi-Asset')
+      (fund) => etfs.has(fund.fundFilter)
     );
   }
 
-  protected convertFundRecord(fund_record: SPDRFundRecord): FundRow {
+  protected convertFundRecord(fund_record: SPDRFundRecord): Omit<FundRow, 'holdings'> {
     console.log(fund_record.fundName.trim())
     return {
       ticker: fund_record.fundTicker.trim().toUpperCase(),
@@ -59,10 +69,12 @@ export class StateStreetFactory extends Factory<SPDRFundRecord, SPDRHoldingRecor
     )
   }
 
-  protected convertHoldingRecord(fund_record: SPDRFundRecord, r: SPDRHoldingRecord): HoldingRow {
+  protected convertHoldingRecord(_f: SPDRFundRecord, r: SPDRHoldingRecord): HoldingRow {
     return {
-      fund: fund_record.fundTicker.trim(),
-      holding: r.Ticker.trim().toUpperCase(),
+      ticker: r.Ticker.trim().toUpperCase(),
+      sedol: r.SEDOL.trim().toLowerCase(),
+      ski: r.Identifier.trim().toLowerCase(),
+      last: 0,
       weight: parseFloat(r.Weight),
     }
   }

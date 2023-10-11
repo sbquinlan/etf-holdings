@@ -37,7 +37,7 @@ export class BlackrockFactory extends Factory<BlackrockFundRecord, BlackrockHold
       .filter((record) => record.aladdinAssetClass === 'Equity');
   }
 
-  protected convertFundRecord(p: BlackrockFundRecord): FundRow {
+  protected convertFundRecord(p: BlackrockFundRecord): Omit<FundRow, 'holdings'> {
     console.log(p.fundShortName);
     return {
       ticker: p.localExchangeTicker.trim().toUpperCase(),
@@ -79,12 +79,15 @@ export class BlackrockFactory extends Factory<BlackrockFundRecord, BlackrockHold
   }
 
   protected convertHoldingRecord(
-    fund: BlackrockFundRecord,
+    _: BlackrockFundRecord,
     record: BlackrockHoldingRecord,
   ): HoldingRow {
     return {
-      fund: fund.localExchangeTicker.trim().toUpperCase(),
-      holding: record.ticker.trim().toUpperCase(),
+      ticker: record.ticker.trim().toUpperCase(),
+      isin: record.isin.trim().toLowerCase(),
+      sedol: record.sedol.trim().toLowerCase(),
+      cusip: record.cusip.trim().toLowerCase(),
+      last: record.last.raw,
       weight: record.weight.raw,
     }
   }

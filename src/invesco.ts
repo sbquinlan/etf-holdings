@@ -30,7 +30,7 @@ export class InvescoFactory extends Factory<InvescoFundRecord, InvescoHoldingRec
     );
   }
 
-  protected convertFundRecord(record: InvescoFundRecord): FundRow {
+  protected convertFundRecord(record: InvescoFundRecord): Omit<FundRow, 'holdings'> {
     console.log(record.name);
     return record;
   }
@@ -49,8 +49,8 @@ export class InvescoFactory extends Factory<InvescoFundRecord, InvescoHoldingRec
 
   protected convertHoldingRecord(_f: InvescoFundRecord, r: InvescoHoldingRecord): HoldingRow {
     return {
-      fund: r['Fund Ticker'].trim().toUpperCase(),
-      holding: r['Holding Ticker'].trim().toUpperCase(),
+      ticker: r['Holding Ticker'].trim().toUpperCase(),
+      last: parseFloat(r.MarketValue) / parseFloat(r['Shares/Par Value']),
       weight: parseFloat(r.Weight),
     };
   }

@@ -1679,7 +1679,7 @@ __metadata:
     node-html-parser: ^5.4.2-0
     papaparse: ^5.3.2
     prettier: ^2.7.1
-    quinzlib: "https://github.com/sbquinlan/quinzlib#v1.1.0"
+    quinzlib: "https://github.com/sbquinlan/quinzlib#v1.1.1"
     ts-jest: ^28.0.7
     typescript: ^4.8.2
     xlsx: ^0.18.5
@@ -3234,10 +3234,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"quinzlib@https://github.com/sbquinlan/quinzlib#v1.1.0":
-  version: 1.1.0
-  resolution: "quinzlib@https://github.com/sbquinlan/quinzlib.git#commit=010aece4480782b9556bed614e56ce381bd43a7e"
-  checksum: bb867d4576c50d34039219ba422a510865fb6077c8bd12f08daf2d027e6e35b7e136634d1b43b01318c5590733676255af9a2edc127946531fb4e6be3b21ca0f
+"quinzlib@https://github.com/sbquinlan/quinzlib#v1.1.1":
+  version: 1.1.1
+  resolution: "quinzlib@https://github.com/sbquinlan/quinzlib.git#commit=590a255cabf2928c6609cdf1653dcb92fa8d19ce"
+  checksum: bff892d06daf94a1be6b783bf5dfef118f0332111fcb7ba1f44cbef91903148f18d0bf2dcba3a6265982fc3ca32ecd2bdccf01062d30a09021315df058d470b8
   languageName: node
   linkType: hard
 
