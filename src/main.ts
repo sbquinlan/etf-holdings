@@ -26,7 +26,6 @@ async function main() {
         throw new Error(`Ticker is not a string: ${t.holdings[0].ticker} in ${t.ticker}`);
       }
       if (!t.holdings.every(h => String(parseInt(h.ticker)) !== h.ticker)) {
-        console.log(JSON.stringify(t, null, 2));
         throw new Error(`Ticker is a number: ${t.holdings[0].ticker} in ${t.ticker}`);
       }
       return true;
@@ -39,18 +38,18 @@ async function main() {
     map(async fund => fund.holdings),
     flatten(),
     reduce(
-      (collapsed: Record<string, Partial<HoldingRow>>, next) => {
+      (collapsed: Record<string, Omit<HoldingRow, 'weight'>>, next) => {
         const { weight, ticker, ... fields } = next;
         if (ticker in collapsed) {
           collapsed[ticker] = {
             ... Object.fromEntries(
-              Object.entries(fields).filter(([_, v]) => !!v)
-              ),
-              ... Object.fromEntries(
-                Object.entries(collapsed[next.ticker]).filter(([_, v]) => !!v)
-              ),
-              ticker,
-            };
+              [
+                ... Object.entries(fields),
+                ... Object.entries(collapsed[next.ticker]),
+              ].filter(([_, v]) => !!v)
+            ),
+            ticker,
+          } as Omit<HoldingRow, 'weight'>;
         } else {
           collapsed[ticker] = next;
         }
@@ -67,6 +66,18 @@ async function main() {
     });
     return { ... fund, holdings };
   });
+
+  for (const fund of rectified) {
+    if (!fund.isin || !fund.cusip) {
+      console.log(`Missing identifier: ${fund.ticker} ${fund.name}`);
+    }
+
+    for (const holding of fund.holdings) {
+      if (!holding.isin || !holding.cusip) {
+        console.log(`Missing identifier in ${fund.ticker}: ${holding.ticker}`);
+      }
+    }
+  }
   
   await Promise.all([
     writeFile('./data/all-holdings.json', JSON.stringify(collapsed_holdings)),

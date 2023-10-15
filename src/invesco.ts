@@ -32,7 +32,9 @@ export class InvescoFactory extends Factory<InvescoFundRecord, InvescoHoldingRec
 
   protected convertFundRecord(record: InvescoFundRecord): Omit<FundRow, 'holdings'> {
     console.log(record.name);
-    return record;
+    throw new Error('missing identifiers');
+    // need to visit each individual fund page to get the isin / cusip
+    return { ... record, isin: '', cusip: '' };
   }
 
   protected async genHoldingsTable(fund: InvescoFundRecord) {
@@ -50,6 +52,9 @@ export class InvescoFactory extends Factory<InvescoFundRecord, InvescoHoldingRec
   protected convertHoldingRecord(_f: InvescoFundRecord, r: InvescoHoldingRecord): HoldingRow {
     return {
       ticker: r['Holding Ticker'].trim().toUpperCase(),
+      cusip: r['Security Identifier'].trim().toUpperCase(),
+      // dangerous conversion
+      // isin: isinToCusip('US', r['ISIN']),
       last: parseFloat(r.MarketValue) / parseFloat(r['Shares/Par Value']),
       weight: parseFloat(r.Weight),
     };

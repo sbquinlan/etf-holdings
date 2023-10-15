@@ -39,8 +39,11 @@ export class BlackrockFactory extends Factory<BlackrockFundRecord, BlackrockHold
 
   protected convertFundRecord(p: BlackrockFundRecord): Omit<FundRow, 'holdings'> {
     console.log(p.fundShortName);
+    throw new Error('isin missing');
     return {
       ticker: p.localExchangeTicker.trim().toUpperCase(),
+      isin: '',
+      cusip: '',
       name: p.fundShortName.trim(),
     };
   }
@@ -85,7 +88,6 @@ export class BlackrockFactory extends Factory<BlackrockFundRecord, BlackrockHold
     return {
       ticker: record.ticker.trim().toUpperCase(),
       isin: record.isin.trim().toLowerCase(),
-      sedol: record.sedol.trim().toLowerCase(),
       cusip: record.cusip.trim().toLowerCase(),
       last: record.last.raw,
       weight: record.weight.raw,

@@ -2,6 +2,7 @@ import fetch from 'node-fetch';
 import type { SPDRFundRecord, SPDRHoldingRecord } from './statestreet_types.js';
 import { Factory, FundRow, HoldingRow } from './download.js';
 import { read, utils } from 'xlsx';
+import { cusipToIsin, isinToCusip } from './identifiers.js';
 
 const URI_BASE = 'https://www.ssga.com';
 export class StateStreetFactory extends Factory<SPDRFundRecord, SPDRHoldingRecord> {
@@ -35,8 +36,13 @@ export class StateStreetFactory extends Factory<SPDRFundRecord, SPDRHoldingRecor
 
   protected convertFundRecord(fund_record: SPDRFundRecord): Omit<FundRow, 'holdings'> {
     console.log(fund_record.fundName.trim())
+    const isin = fund_record.keywords.split(',')
+      .filter((k) => k.trim().toUpperCase().startsWith('US'))
+      .at(0)!.trim()!.toUpperCase();
     return {
       ticker: fund_record.fundTicker.trim().toUpperCase(),
+      isin,
+      cusip: isinToCusip(isin),
       name: fund_record.fundName.trim(),
     };
   }
@@ -65,15 +71,17 @@ export class StateStreetFactory extends Factory<SPDRFundRecord, SPDRHoldingRecor
     // technically not sure the filtering is working so the excel format 
     // could result in different labels than SPDRHoldingRecord
     return raw.filter(
-      r => 'Name' in r && 'Ticker' in r && 'Weight' in r
+      r => 'Name' in r && 'Ticker' in r && 'Weight' in r && r['SEDOL'] !== '-' 
     )
   }
 
   protected convertHoldingRecord(_f: SPDRFundRecord, r: SPDRHoldingRecord): HoldingRow {
     return {
       ticker: r.Ticker.trim().toUpperCase(),
-      sedol: r.SEDOL.trim().toLowerCase(),
-      ski: r.Identifier.trim().toLowerCase(),
+      cusip: r.Identifier.trim().toUpperCase(),
+      // if it has a cusip, it should be a US isin and considering we filter to US etfs
+      // would be safer to use cusip though. 
+      isin: cusipToIsin('US', r.Identifier.trim().toUpperCase()),
       last: 0,
       weight: parseFloat(r.Weight),
     }

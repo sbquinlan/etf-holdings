@@ -3,16 +3,15 @@ import { fluent, map } from "quinzlib";
 export interface FundRow {
   ticker: string;
   name: string;
-  cusip?: string;
+  isin: string;
+  cusip: string;
   holdings: HoldingRow[],
 }
 
 export interface HoldingRow {
   ticker: string;
   isin?: string;
-  cusip?: string;
-  sedol?: string;
-  ski?: string;
+  cusip: string;
   last: number;
   weight: number; // 11.0 means 11%
 }

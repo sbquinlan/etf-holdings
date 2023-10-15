@@ -4,7 +4,7 @@ import type {
   VanguardFundRecord,
   VanguardHoldingRecord,
 } from './vanguard_types.js';
-
+import { cusipToIsin } from './identifiers.js';
 const URI_BASE = 'https://investor.vanguard.com';
 
 export class VanguardFactory extends Factory<VanguardFundRecord, VanguardHoldingRecord> {
@@ -26,8 +26,12 @@ export class VanguardFactory extends Factory<VanguardFundRecord, VanguardHolding
 
   protected convertFundRecord(fund_record: VanguardFundRecord): Omit<FundRow, 'holdings'> {
     console.log(fund_record.profile.longName.trim());
+    const cusip = fund_record.profile.cusip.trim().toUpperCase();
+
     return {
       ticker: fund_record.profile.ticker.trim().toUpperCase(),
+      cusip: cusip,
+      isin: cusipToIsin('US', cusip),
       name: fund_record.profile.longName.trim(),
     };
   }
@@ -53,7 +57,8 @@ export class VanguardFactory extends Factory<VanguardFundRecord, VanguardHolding
   ): HoldingRow {
     return {
       ticker: holding_record.ticker.trim().toUpperCase(),
-      isin: holding_record.isin.trim().toLowerCase(),
+      isin: holding_record.isin.trim().toUpperCase(),
+      cusip: holding_record.cusip.trim().toUpperCase(),
       // janky
       last: parseFloat(holding_record.marketValue) / parseFloat(holding_record.sharesHeld),
       weight: parseFloat(holding_record.percentWeight),
