@@ -1,11 +1,11 @@
-import { fluent, map } from "quinzlib";
+import { fluent, map } from 'quinzlib';
 
 export interface FundRow {
   ticker: string;
   name: string;
   isin: string;
   cusip: string;
-  holdings: HoldingRow[],
+  holdings: HoldingRow[];
 }
 
 export interface HoldingRow {
@@ -17,10 +17,7 @@ export interface HoldingRow {
 }
 
 export class ErrorTF extends Error {
-  constructor(
-    public readonly fund: any,
-    public readonly inner: any,
-  ) {
+  constructor(public readonly fund: any, public readonly inner: any) {
     super();
   }
 }
@@ -32,8 +29,8 @@ export abstract class Factory<TFundRecord, THoldingRecord> {
       map(async (fund_record) => {
         try {
           const holdings = await this.genHoldings(fund_record);
-          return {... this.convertFundRecord(fund_record), holdings};
-        } catch(e: any) {
+          return { ...this.convertFundRecord(fund_record), holdings };
+        } catch (e: any) {
           return new ErrorTF(fund_record, e);
         }
       })
@@ -42,15 +39,19 @@ export abstract class Factory<TFundRecord, THoldingRecord> {
 
   async genHoldings(fund_record: TFundRecord) {
     const holdings = await this.genHoldingsTable(fund_record);
-    return holdings.map(h => this.convertHoldingRecord(fund_record, h));
+    return holdings.map((h) => this.convertHoldingRecord(fund_record, h));
   }
-  
-  protected abstract genFundsTable(): AsyncIterable<TFundRecord>;
-  protected abstract convertFundRecord(fund_record: TFundRecord): Omit<FundRow, 'holdings'>;
 
-  protected abstract genHoldingsTable(fund_record: TFundRecord): Promise<THoldingRecord[]>;
+  protected abstract genFundsTable(): AsyncIterable<TFundRecord>;
+  protected abstract convertFundRecord(
+    fund_record: TFundRecord
+  ): Omit<FundRow, 'holdings'>;
+
+  protected abstract genHoldingsTable(
+    fund_record: TFundRecord
+  ): Promise<THoldingRecord[]>;
   protected abstract convertHoldingRecord(
-    fund_record: TFundRecord, 
+    fund_record: TFundRecord,
     holding_record: THoldingRecord
   ): HoldingRow;
 }

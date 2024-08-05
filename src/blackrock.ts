@@ -11,7 +11,10 @@ import { HoldingRow, Factory, FundRow } from './download.js';
 const URI_BASE = 'https://www.blackrock.com';
 const HOLDINGS_REGEX =
   /\/us\/individual\/products\/\d+\/[^/]+\/\d+.ajax\?tab=all&fileType=json/;
-export class BlackrockFactory extends Factory<BlackrockFundRecord, BlackrockHoldingRecord> {
+export class BlackrockFactory extends Factory<
+  BlackrockFundRecord,
+  BlackrockHoldingRecord
+> {
   protected async *genFundsTable() {
     const resp = await fetch(
       `${URI_BASE}/us/individual/product-screener/product-screener-v3.jsn?dcrPath=/templatedata/config/product-screener-v3/data/en/one/one-v4`
@@ -37,7 +40,9 @@ export class BlackrockFactory extends Factory<BlackrockFundRecord, BlackrockHold
       .filter((record) => record.aladdinAssetClass === 'Equity');
   }
 
-  protected convertFundRecord(p: BlackrockFundRecord): Omit<FundRow, 'holdings'> {
+  protected convertFundRecord(
+    p: BlackrockFundRecord
+  ): Omit<FundRow, 'holdings'> {
     console.log(p.fundShortName);
     throw new Error('isin missing');
     return {
@@ -59,7 +64,9 @@ export class BlackrockFactory extends Factory<BlackrockFundRecord, BlackrockHold
     return raw.match(HOLDINGS_REGEX)?.at(0);
   }
 
-  protected async genHoldingsTable(fund_record: BlackrockFundRecord): Promise<BlackrockHoldingRecord[]> {
+  protected async genHoldingsTable(
+    fund_record: BlackrockFundRecord
+  ): Promise<BlackrockHoldingRecord[]> {
     const holdings_uri = await this.genHoldingsURI(fund_record.productPageUrl!);
     if (!holdings_uri) {
       return [];
@@ -83,7 +90,7 @@ export class BlackrockFactory extends Factory<BlackrockFundRecord, BlackrockHold
 
   protected convertHoldingRecord(
     _: BlackrockFundRecord,
-    record: BlackrockHoldingRecord,
+    record: BlackrockHoldingRecord
   ): HoldingRow {
     return {
       ticker: record.ticker.trim().toUpperCase(),
@@ -91,6 +98,6 @@ export class BlackrockFactory extends Factory<BlackrockFundRecord, BlackrockHold
       cusip: record.cusip.trim().toLowerCase(),
       last: record.last.raw,
       weight: record.weight.raw,
-    }
+    };
   }
 }

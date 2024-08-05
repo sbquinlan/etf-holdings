@@ -1,7 +1,7 @@
 /**
- * All the schwab stuff is using wallst.com which is somewhat difficult to work with. 
- * At the surface a straightforward HTML table scraping would work but requires multiple 
- * requests and maybe some JS eval. There is an underlying API backing the whole thing 
+ * All the schwab stuff is using wallst.com which is somewhat difficult to work with.
+ * At the surface a straightforward HTML table scraping would work but requires multiple
+ * requests and maybe some JS eval. There is an underlying API backing the whole thing
  * but it outputs a DOM structure in JSON so you might as well run the HTML scraping.
  */
 

@@ -5,7 +5,10 @@ import { read, utils } from 'xlsx';
 import { cusipToIsin, isinToCusip } from './identifiers.js';
 
 const URI_BASE = 'https://www.ssga.com';
-export class StateStreetFactory extends Factory<SPDRFundRecord, SPDRHoldingRecord> {
+export class StateStreetFactory extends Factory<
+  SPDRFundRecord,
+  SPDRHoldingRecord
+> {
   protected async *genFundsTable() {
     const resp = await fetch(
       `${URI_BASE}/bin/v1/ssmp/fund/fundfinder?country=us&language=en&role=intermediary&product=etfs&ui=fund-finder`
@@ -15,30 +18,37 @@ export class StateStreetFactory extends Factory<SPDRFundRecord, SPDRHoldingRecor
       throw new Error(`${resp.status} ${resp.statusText}: ${msg}`);
     }
     const payload = (await resp.json()) as any;
-    
+
     const equity_etfs = payload.data.funds.etfs.categories
-      .find((cat: any) => cat.key === 'assetclass')?.subCategories
-      ?.find((cat: any) => cat.key === 'equity')?.funds
-      ?.split('|');
+      .find((cat: any) => cat.key === 'assetclass')
+      ?.subCategories?.find((cat: any) => cat.key === 'equity')
+      ?.funds?.split('|');
     const us_etfs = payload.data.funds.etfs.categories
-      .find((cat: any) => cat.key === 'geographical-exposure')?.subCategories
-      ?.find((cat: any) => cat.key === 'geographical-exposure')?.subCategories
-      ?.find((cat: any) => cat.key === 'investment-geography')?.subCategories
-      ?.find((cat: any) => cat.key === 'United-States')?.funds
-      ?.split('|');
-    
+      .find((cat: any) => cat.key === 'geographical-exposure')
+      ?.subCategories?.find((cat: any) => cat.key === 'geographical-exposure')
+      ?.subCategories?.find((cat: any) => cat.key === 'investment-geography')
+      ?.subCategories?.find((cat: any) => cat.key === 'United-States')
+      ?.funds?.split('|');
+
     // set intersection of us_etfs and equity_etfs
-    const etfs = new Set(us_etfs?.filter((etf: string) => equity_etfs?.includes(etf)));
-    yield* (payload.data.funds.etfs.datas as SPDRFundRecord[]).filter(
-      (fund) => etfs.has(fund.fundFilter)
+    const etfs = new Set(
+      us_etfs?.filter((etf: string) => equity_etfs?.includes(etf))
+    );
+    yield* (payload.data.funds.etfs.datas as SPDRFundRecord[]).filter((fund) =>
+      etfs.has(fund.fundFilter)
     );
   }
 
-  protected convertFundRecord(fund_record: SPDRFundRecord): Omit<FundRow, 'holdings'> {
-    console.log(fund_record.fundName.trim())
-    const isin = fund_record.keywords.split(',')
+  protected convertFundRecord(
+    fund_record: SPDRFundRecord
+  ): Omit<FundRow, 'holdings'> {
+    console.log(fund_record.fundName.trim());
+    const isin = fund_record.keywords
+      .split(',')
       .filter((k) => k.trim().toUpperCase().startsWith('US'))
-      .at(0)!.trim()!.toUpperCase();
+      .at(0)!
+      .trim()!
+      .toUpperCase();
     return {
       ticker: fund_record.fundTicker.trim().toUpperCase(),
       isin,
@@ -68,22 +78,25 @@ export class StateStreetFactory extends Factory<SPDRFundRecord, SPDRHoldingRecor
     // The headers start on row 4 (0 indexed) as of this writing
     const raw = utils.sheet_to_json(sheet, { range: 4 }) as any[];
 
-    // technically not sure the filtering is working so the excel format 
+    // technically not sure the filtering is working so the excel format
     // could result in different labels than SPDRHoldingRecord
     return raw.filter(
-      r => 'Name' in r && 'Ticker' in r && 'Weight' in r && r['SEDOL'] !== '-' 
-    )
+      (r) => 'Name' in r && 'Ticker' in r && 'Weight' in r && r['SEDOL'] !== '-'
+    );
   }
 
-  protected convertHoldingRecord(_f: SPDRFundRecord, r: SPDRHoldingRecord): HoldingRow {
+  protected convertHoldingRecord(
+    _f: SPDRFundRecord,
+    r: SPDRHoldingRecord
+  ): HoldingRow {
     return {
       ticker: r.Ticker.trim().toUpperCase(),
       cusip: r.Identifier.trim().toUpperCase(),
       // if it has a cusip, it should be a US isin and considering we filter to US etfs
-      // would be safer to use cusip though. 
+      // would be safer to use cusip though.
       isin: cusipToIsin('US', r.Identifier.trim().toUpperCase()),
       last: 0,
       weight: parseFloat(r.Weight),
-    }
+    };
   }
 }

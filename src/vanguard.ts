@@ -7,24 +7,37 @@ import type {
 import { cusipToIsin } from './identifiers.js';
 const URI_BASE = 'https://investor.vanguard.com';
 
-export class VanguardFactory extends Factory<VanguardFundRecord, VanguardHoldingRecord> {
+export class VanguardFactory extends Factory<
+  VanguardFundRecord,
+  VanguardHoldingRecord
+> {
   protected async *genFundsTable() {
-    const resp = await fetch(`${URI_BASE}/investment-products/list/funddetail`, {
-      "headers": {
-        "accept": "application/json, text/plain, */*",
-        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36"
-      },
-    });
+    const resp = await fetch(
+      `${URI_BASE}/investment-products/list/funddetail`,
+      {
+        headers: {
+          accept: 'application/json, text/plain, */*',
+          'user-agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36',
+        },
+      }
+    );
     if (!resp.ok) {
       const msg = await resp.text();
       throw new Error(`${resp.status} ${resp.statusText}: ${msg}`);
     }
     const payload = (await resp.json()) as any;
-    yield* (payload.fund.entity as VanguardFundRecord[])
-      .filter((fund) => fund.profile.isETF && fund.profile.fundFact.isStock && fund.profile.fundFact.isDomesticStockFund);
+    yield* (payload.fund.entity as VanguardFundRecord[]).filter(
+      (fund) =>
+        fund.profile.isETF &&
+        fund.profile.fundFact.isStock &&
+        fund.profile.fundFact.isDomesticStockFund
+    );
   }
 
-  protected convertFundRecord(fund_record: VanguardFundRecord): Omit<FundRow, 'holdings'> {
+  protected convertFundRecord(
+    fund_record: VanguardFundRecord
+  ): Omit<FundRow, 'holdings'> {
     console.log(fund_record.profile.longName.trim());
     const cusip = fund_record.profile.cusip.trim().toUpperCase();
 
@@ -52,16 +65,18 @@ export class VanguardFactory extends Factory<VanguardFundRecord, VanguardHolding
   }
 
   protected convertHoldingRecord(
-    _f: VanguardFundRecord, 
-    holding_record: VanguardHoldingRecord,
+    _f: VanguardFundRecord,
+    holding_record: VanguardHoldingRecord
   ): HoldingRow {
     return {
       ticker: holding_record.ticker.trim().toUpperCase(),
       isin: holding_record.isin.trim().toUpperCase(),
       cusip: holding_record.cusip.trim().toUpperCase(),
       // janky
-      last: parseFloat(holding_record.marketValue) / parseFloat(holding_record.sharesHeld),
+      last:
+        parseFloat(holding_record.marketValue) /
+        parseFloat(holding_record.sharesHeld),
       weight: parseFloat(holding_record.percentWeight),
-    }
+    };
   }
 }
